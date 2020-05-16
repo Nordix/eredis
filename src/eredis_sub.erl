@@ -37,7 +37,7 @@ start_link(Host, Port, Password, ReconnectSleep,
                                  MaxQueueSize, QueueBehaviour).
 
 %% @doc: Callback for starting from poolboy
--spec start_link(server_args()) -> {ok, Pid::pid()} | {error, Reason::term()}.
+-spec start_link(options()) -> {ok, Pid::pid()} | {error, Reason::term()}.
 start_link(Args) ->
     Host           = proplists:get_value(host, Args, "127.0.0.1"),
     Port           = proplists:get_value(port, Args, 6379),

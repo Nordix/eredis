@@ -24,14 +24,18 @@
 -behaviour(gen_server).
 -include("eredis.hrl").
 
-%% API
--export([start_link/7, stop/1, select_database/2]).
+-define(CONNECT_TIMEOUT, 5000).
+-define(RECONNECT_SLEEP, 100).
 
--export([do_sync_command/2]).
+%% API
+-export([start_link/3, stop/1, select_database/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+%% Used by eredis_sub_client.erl
+-export([do_sync_command/2]).
 
 -record(state, {
                 host :: string() | {local, string()} | undefined,
@@ -53,15 +57,10 @@
 
 -spec start_link(Host::list(),
                  Port::integer(),
-                 Database::integer() | undefined,
-                 Password::string(),
-                 ReconnectSleep::reconnect_sleep(),
-                 ConnectTimeout::integer() | undefined,
-                 SocketOptions::list()) ->
+                 Options::options()) ->
           {ok, Pid::pid()} | {error, Reason::term()}.
-start_link(Host, Port, Database, Password, ReconnectSleep, ConnectTimeout, SocketOptions) ->
-    gen_server:start_link(?MODULE, [Host, Port, Database, Password,
-                                    ReconnectSleep, ConnectTimeout, SocketOptions], []).
+start_link(Host, Port, Options) ->
+    gen_server:start_link(?MODULE, [Host, Port, Options], []).
 
 
 stop(Pid) ->
@@ -71,7 +70,13 @@ stop(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Host, Port, Database, Password, ReconnectSleep, ConnectTimeout, SocketOptions]) ->
+init([Host, Port, Options]) ->
+    Database       = proplists:get_value(database, Options, 0),
+    Password       = proplists:get_value(password, Options, ""),
+    ReconnectSleep = proplists:get_value(reconnect_sleep, Options, ?RECONNECT_SLEEP),
+    ConnectTimeout = proplists:get_value(connect_timeout, Options, ?CONNECT_TIMEOUT),
+    SocketOptions  = proplists:get_value(socket_options, Options, []),
+
     State = #state{host = Host,
                    port = Port,
                    database = read_database(Database),
@@ -80,6 +85,7 @@ init([Host, Port, Database, Password, ReconnectSleep, ConnectTimeout, SocketOpti
                    connect_timeout = ConnectTimeout,
                    socket_options = SocketOptions,
 
+                   socket = undefined,
                    parser_state = eredis_parser:init(),
                    queue = queue:new()},
 

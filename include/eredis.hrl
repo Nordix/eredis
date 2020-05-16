@@ -2,8 +2,8 @@
 
 -type reconnect_sleep() :: no_reconnect | integer().
 
--type option() :: {host, string()} | {port, integer()} | {database, string()} | {password, string()} | {reconnect_sleep, reconnect_sleep()}.
--type server_args() :: [option()].
+-type option() :: {database, string()} | {password, string()} | {reconnect_sleep, reconnect_sleep()}.
+-type options() :: [option()].
 
 -type return_value() :: undefined | binary() | [binary() | nonempty_list()].
 
