@@ -163,18 +163,6 @@ q_async_test() ->
             ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo]))
     end.
 
-c() ->
-    Res = eredis:start_link(),
-    ?assertMatch({ok, _}, Res),
-    {ok, C} = Res,
-    C.
-
-c_no_reconnect() ->
-    Res = eredis:start_link("127.0.0.1", 6379, [{reconnect_sleep, no_reconnect}]),
-    ?assertMatch({ok, _}, Res),
-    {ok, C} = Res,
-    C.
-
 multibulk_test_() ->
     [?_assertEqual(<<"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n">>,
                    list_to_binary(create_multibulk(["SET", "foo", "bar"]))),
@@ -192,7 +180,8 @@ undefined_database_test() ->
     ?assertMatch({ok, _}, eredis:start_link("localhost", 6379, [{database, undefined}])).
 
 select_logical_database_test() ->
-    ?assertMatch({ok, _}, eredis:start_link("localhost", 6379, [{database, 2}])).
+    ?assertMatch({ok, _}, eredis:start_link("localhost", 6379, [{database, 2},
+                                                                {reconnect_sleep, no_reconnect}])).
 
 authentication_error_test() ->
     process_flag(trap_exit, true),
@@ -243,6 +232,10 @@ tcp_closed_no_reconnect_test() ->
     C = c_no_reconnect(),
     tcp_closed_rig(C).
 
+%%
+%% Helpers
+%%
+
 tcp_closed_rig(C) ->
     %% fire async requests to add to redis client queue and then trick
     %% the client into thinking the connection to redis has been
@@ -282,3 +275,15 @@ gather_remote_queries([Pid | Rest], Acc) ->
         10000 ->
             error({gather_remote_queries, timeout})
     end.
+
+c() ->
+    Res = eredis:start_link(),
+    ?assertMatch({ok, _}, Res),
+    {ok, C} = Res,
+    C.
+
+c_no_reconnect() ->
+    Res = eredis:start_link("127.0.0.1", 6379, [{reconnect_sleep, no_reconnect}]),
+    ?assertMatch({ok, _}, Res),
+    {ok, C} = Res,
+    C.

@@ -2,7 +2,9 @@
 
 -type reconnect_sleep() :: no_reconnect | integer().
 
--type option() :: {database, string()} | {password, string()} | {reconnect_sleep, reconnect_sleep()}.
+-type option() :: {database, string()} | {password, string()} | {reconnect_sleep, reconnect_sleep()} |
+                  {connect_timeout, integer()} | {socket_options, list()}.
+
 -type options() :: [option()].
 
 -type return_value() :: undefined | binary() | [binary() | nonempty_list()].
