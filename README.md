@@ -1,6 +1,16 @@
-# eredis
+# eredis (Nordix fork)
 
 Non-blocking Redis client with focus on performance and robustness.
+
+Improvements compared to `wooga/eredis`:
+
+* Support of TLS introduced in Redis 6
+* Changed API: `start_link` takes a proplist with options
+* Correction regarding chunked error responses
+* Dialyzer corrections
+* Elvis code formatting
+* Improved test coverage
+* Containerized testing
 
 Supported Redis features:
 
@@ -10,7 +20,7 @@ Supported Redis features:
  * Authentication & multiple dbs
  * Pubsub
 
-## Example
+## Setup
 
 If you have Redis running on localhost with default settings, like:
 
@@ -18,7 +28,7 @@ If you have Redis running on localhost with default settings, like:
 
 you may copy and paste the following into a shell to try out Eredis:
 
-    git clone git://github.com/wooga/eredis.git
+    git clone git://github.com/Nordix/eredis.git
     cd eredis
     rebar3 shell
     {ok, C} = eredis:start_link().
@@ -30,6 +40,17 @@ To connect to a Redis instance listening on a Unix domain socket:
 ```erlang
 {ok, C1} = eredis:start_link({local, "/var/run/redis.sock"}, 0).
 ```
+
+To connect to a Redis instance using TLS:
+
+```erlang
+Options = [{tls, [{cacertfile, "ca.crt"},
+                  {certfile,   "client.crt"},
+                  {keyfile,    "client.key"}]}],
+{ok, C2} = eredis:start_link("127.0.0.1", ?TLS_PORT, Options),
+```
+
+## Example
 
 MSET and MGET:
 
@@ -99,6 +120,8 @@ ok
 
 ## Commands
 
+### Query: q/2-3
+
 Eredis has one main function to interact with redis, which is
 `eredis:q(Client::pid(), Command::iolist())`. The response will either
 be `{ok, Value::binary() | [binary()]}` or `{error,
@@ -107,23 +130,29 @@ Redis, without any type conversion. If Redis returns a list of values,
 this list is returned in the exact same order without any type
 conversion.
 
+### Pipelined query: qp/2-3
+
 To send multiple requests to redis in a batch, aka. pipelining
 requests, you may use `eredis:qp(Client::pid(),
 [Command::iolist()])`. This function returns `{ok, [Value::binary()]}`
 where the values are the redis responses in the same order as the
 commands you provided.
 
-To start the client, use any of the `eredis:start_link/0,1,2,3,4,5,6,7`
-functions. They all include sensible defaults. `start_link/7` takes
+### Connect a client: start_link/0-3
+
+To start the client, use any of the `eredis:start_link/0,2,3`
+functions. They all include sensible defaults. `start_link/3` takes
 the following arguments:
 
 * Host, dns name or ip adress as string; or unix domain socket as {local, Path} (available in OTP 19+)
 * Port, integer, default is 6379
-* Database, integer or 0 for default database
-* Password, string or empty string([]) for no password
-* Reconnect sleep, integer of milliseconds to sleep between reconnect attempts
-* Connect timeout, timeout value in milliseconds to use in `gen_tcp:connect`, default is 5000
-* Socket options, proplist of options to be sent to `gen_tcp:connect`, default is `?SOCKET_OPTS`
+* Options, a proplist that can contain following, default: []
+  * `database`: integer or 0 for default database, default: 0
+  * `password`: string or empty string for no password, default: "" i.e. no password
+  * `reconnect_sleep`: integer of milliseconds to sleep between reconnect attempts, default: 100
+  * `connect_timeout`: timeout value in milliseconds to use in the connect, default: 5000
+  * `socket_options`: proplist of options used when connecting the socket, default is `?SOCKET_OPTS`
+  * `tls`: enabling TLS and a proplist of options used when establishing the TLS connection, default is off
 
 ## Reconnecting on Redis down / network failure / timeout / etc
 
@@ -175,7 +204,6 @@ Eredis also implements the AUTH and SELECT calls for you. When the
 client is started with something else than default values for password
 and database, it will issue the `AUTH` and `SELECT` commands
 appropriately, even when reconnecting after a timeout.
-
 
 ## Benchmarking
 

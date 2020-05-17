@@ -35,9 +35,10 @@
 
 -define(NL, "\r\n").
 
+%% initial active opt should be 'false' before a possible upgrade to ssl
 -define(SOCKET_MODE, binary).
--define(SOCKET_OPTS, [{active, once}, {packet, raw}, {reuseaddr, false},
-        {keepalive, false}, {send_timeout, ?SEND_TIMEOUT}]).
+-define(SOCKET_OPTS, [{active, false}, {packet, raw}, {reuseaddr, false},
+                      {keepalive, false}, {send_timeout, ?SEND_TIMEOUT}]).
 
 -define(RECV_TIMEOUT, 5000).
 -define(SEND_TIMEOUT, 5000).

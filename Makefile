@@ -1,5 +1,7 @@
 .PHONY: all compile clean test doc xref dialyzer elvis cover
 
+REDIS_VERSION ?= 6.0.1
+
 all: compile xref dialyzer elvis
 
 compile:
@@ -11,7 +13,8 @@ clean:
 
 test:
 	-@docker rm -f redis
-	@docker run --name redis -d --net=host redis:latest
+	@docker run --name redis -d --net=host -v $(shell pwd)/test/configs:/conf:ro \
+		redis:$(REDIS_VERSION) redis-server /conf/redis.conf
 	@rebar3 eunit -v --cover
 	@docker rm -f redis
 

@@ -5,16 +5,18 @@
 
 -import(eredis, [create_multibulk/1]).
 
+-define(PORT, 6379).
+
 connect_test() ->
     ?assertMatch({ok, _}, eredis:start_link()),
-    ?assertMatch({ok, _}, eredis:start_link("127.0.0.1", 6379)),
-    ?assertMatch({ok, _}, eredis:start_link("localhost", 6379)),
-    ?assertMatch({ok, _}, eredis:start_link("localhost", 6379, [{database, 0},
-                                                                {password, ""},
-                                                                {reconnect_sleep, 100},
-                                                                {connect_timeout, 5000},
-                                                                {socket_options, [{keepalive, true}]}
-                                                               ])).
+    ?assertMatch({ok, _}, eredis:start_link("127.0.0.1", ?PORT)),
+    ?assertMatch({ok, _}, eredis:start_link("localhost", ?PORT)),
+    ?assertMatch({ok, _}, eredis:start_link("localhost", ?PORT, [{database, 0},
+                                                                 {password, ""},
+                                                                 {reconnect_sleep, 100},
+                                                                 {connect_timeout, 5000},
+                                                                 {socket_options, [{keepalive, true}]}
+                                                                ])).
 
 connect_local_test() ->
     process_flag(trap_exit, true),
@@ -177,17 +179,17 @@ multibulk_test_() ->
     ].
 
 undefined_database_test() ->
-    ?assertMatch({ok, _}, eredis:start_link("localhost", 6379, [{database, undefined}])).
+    ?assertMatch({ok, _}, eredis:start_link("localhost", ?PORT, [{database, undefined}])).
 
 select_logical_database_test() ->
-    ?assertMatch({ok, _}, eredis:start_link("localhost", 6379, [{database, 2},
-                                                                {reconnect_sleep, no_reconnect}])).
+    ?assertMatch({ok, _}, eredis:start_link("localhost", ?PORT, [{database, 2},
+                                                                 {reconnect_sleep, no_reconnect}])).
 
 authentication_error_test() ->
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", 6379, [{database, 4},
-                                                {password, "password"},
-                                                {reconnect_sleep, no_reconnect}]),
+    Res = eredis:start_link("127.0.0.1", ?PORT, [{database, 4},
+                                                 {password, "password"},
+                                                 {reconnect_sleep, no_reconnect}]),
     ?assertMatch({error, {authentication_error, _}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
@@ -226,7 +228,10 @@ unknown_client_cast_test() ->
 
 tcp_closed_test() ->
     C = c(),
-    tcp_closed_rig(C).
+    ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
+    tcp_closed_rig(C),
+    timer:sleep(300), %% Wait for reconnection (100ms)
+    ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)).
 
 tcp_closed_no_reconnect_test() ->
     C = c_no_reconnect(),
@@ -283,7 +288,7 @@ c() ->
     C.
 
 c_no_reconnect() ->
-    Res = eredis:start_link("127.0.0.1", 6379, [{reconnect_sleep, no_reconnect}]),
+    Res = eredis:start_link("127.0.0.1", ?PORT, [{reconnect_sleep, no_reconnect}]),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     C.
