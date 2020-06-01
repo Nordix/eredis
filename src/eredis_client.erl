@@ -353,32 +353,32 @@ connect(State) ->
 
     case gen_tcp:connect(Addr, Port, ConnectOptions, State#state.connect_timeout) of
         {ok, Socket} ->
-            NewSocket = maybe_upgrade_to_tls(Socket, State),
-
-            %% Enter `{active, once}' mode. NOTE: tls/ssl doesn't support `{active, N}'
-            ok = setopts(NewSocket, State#state.transport, [{active, once}]),
-            case authenticate(NewSocket, State#state.transport, State#state.password) of
-                ok ->
-                    case select_database(NewSocket, State#state.transport, State#state.database) of
+            case maybe_upgrade_to_tls(Socket, State) of
+                {ok, NewSocket} ->
+                    %% Enter `{active, once}' mode. NOTE: tls/ssl doesn't support `{active, N}'
+                    ok = setopts(NewSocket, State#state.transport, [{active, once}]),
+                    case authenticate(NewSocket, State#state.transport, State#state.password) of
                         ok ->
-                            {ok, State#state{socket = NewSocket}};
+                            case select_database(NewSocket, State#state.transport, State#state.database) of
+                                ok ->
+                                    {ok, State#state{socket = NewSocket}};
+                                {error, Reason} ->
+                                    {error, {select_error, Reason}}
+                            end;
                         {error, Reason} ->
-                            {error, {select_error, Reason}}
+                            {error, {authentication_error, Reason}}
                     end;
                 {error, Reason} ->
-                    {error, {authentication_error, Reason}}
+                    {error, {failed_to_upgrade_to_tls, Reason}}
             end;
         {error, Reason} ->
             {error, {connection_error, Reason}}
     end.
 
 maybe_upgrade_to_tls(Socket, #state{transport = tls} = State) ->
-    case ssl:connect(Socket, State#state.tls_options, State#state.connect_timeout) of
-        {ok, NewSocket} -> NewSocket;
-        {error, Reason} -> erlang:error({failed_to_upgrade_to_tls, Reason})
-    end;
+    ssl:connect(Socket, State#state.tls_options, State#state.connect_timeout);
 maybe_upgrade_to_tls(Socket, _State) ->
-    Socket.
+    {ok, Socket}.
 
 setopts(Socket, tls, Opts) -> ssl:setopts(Socket, Opts);
 setopts(Socket,   _, Opts) -> inet:setopts(Socket, Opts).
