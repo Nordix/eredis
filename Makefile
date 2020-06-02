@@ -11,11 +11,22 @@ clean:
 	@rebar3 clean
 	@rm -rf _build
 
-test:
+test: test-tls test-tcp
+
+test-tcp:
 	-@docker rm -f redis
-	@docker run --name redis -d --net=host -v $(shell pwd)/test/configs:/conf:ro \
-		redis:$(REDIS_VERSION) redis-server /conf/redis.conf
-	@rebar3 eunit -v --cover
+	@docker run --name redis -d --net=host redis:$(REDIS_VERSION)
+	@rebar3 eunit -v --cover_export_name tcp \
+		--suite eredis_parser_tests,eredis_sub_tests,eredis_tests || \
+		{ docker logs redis; exit 1; }
+	@docker rm -f redis
+
+test-tls:
+	-@docker rm -f redis
+	@docker run --name redis -d --net=host -v $(shell pwd)/priv/configs:/conf:ro \
+		redis:$(REDIS_VERSION) redis-server /conf/redis_tls.conf
+	@rebar3 eunit -v --cover_export_name tls \
+		--suite eredis_tls_tests || { docker logs redis; exit 1; }
 	@docker rm -f redis
 
 edoc:

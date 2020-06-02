@@ -20,14 +20,16 @@ tls_get_set_test() ->
 
     ?assertEqual({ok, undefined}, eredis:q(C, ["GET", foo])),
     ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["SET", foo, bar])),
-    ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])).
+    ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])),
+    ?assertMatch(ok, eredis:stop(C)).
 
 tls_closed_test() ->
     C = c_tls(),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     tls_closed_rig(C),
     timer:sleep(300), %% Wait for reconnection (100ms)
-    ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)).
+    ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
+    ?assertMatch(ok, eredis:stop(C)).
 
 tls_connect_database_test() ->
     ExtraOptions = [{database, 2}],
@@ -36,7 +38,15 @@ tls_connect_database_test() ->
 
     ?assertEqual({ok, undefined}, eredis:q(C, ["GET", foo])),
     ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["SET", foo, bar])),
-    ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])).
+    ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])),
+    ?assertMatch(ok, eredis:stop(C)).
+
+tls_cert_expired_test() ->
+    ExtraOptions = [],
+    ConfigDir = "tls_expired_client_certs",
+    C = c_tls(ExtraOptions, ConfigDir),
+    ?assertMatch({error, no_connection}, eredis:q(C, ["GET", foo])),
+    ?assertMatch(ok, eredis:stop(C)).
 
 %%
 %% Helpers
@@ -45,7 +55,10 @@ c_tls() ->
     c_tls([]).
 
 c_tls(ExtraOptions) ->
-    Dir = filename:join([code:lib_dir(eredis), "test", "configs", "tls"]),
+    c_tls(ExtraOptions, "tls").
+
+c_tls(ExtraOptions, ConfigDir) ->
+    Dir = filename:join([code:priv_dir(eredis), "configs", ConfigDir]),
     Options = [{tls, [{cacertfile, filename:join([Dir, "ca.crt"])},
                       {certfile,   filename:join([Dir, "client.crt"])},
                       {keyfile,    filename:join([Dir, "client.key"])}]}],
