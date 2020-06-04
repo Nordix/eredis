@@ -2,7 +2,7 @@
 
 Non-blocking Redis client with focus on performance and robustness.
 
-Improvements compared to `wooga/eredis`:
+Improvements and changes compared to `wooga/eredis`:
 
 * Support of TLS introduced in Redis 6
 * Changed API: `start_link` takes a proplist with options
@@ -11,6 +11,7 @@ Improvements compared to `wooga/eredis`:
 * Elvis code formatting
 * Improved test coverage
 * Containerized testing
+* Default reconnection sleep changed from 100ms to 1s
 
 Supported Redis features:
 
@@ -149,7 +150,7 @@ the following arguments:
 * Options, a proplist that can contain following, default: []
   * `database`: integer or 0 for default database, default: 0
   * `password`: string or empty string for no password, default: "" i.e. no password
-  * `reconnect_sleep`: integer of milliseconds to sleep between reconnect attempts, default: 100
+  * `reconnect_sleep`: integer of milliseconds to sleep between reconnect attempts, default: 1000
   * `connect_timeout`: timeout value in milliseconds to use in the connect, default: 5000
   * `socket_options`: proplist of options used when connecting the socket, default is `?SOCKET_OPTS`
   * `tls`: enabling TLS and a proplist of options used when establishing the TLS connection, default is off

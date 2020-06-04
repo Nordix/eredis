@@ -27,7 +27,7 @@ tls_closed_test() ->
     C = c_tls(),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     tls_closed_rig(C),
-    timer:sleep(300), %% Wait for reconnection (100ms)
+    timer:sleep(1300), %% Wait for reconnection (1000ms)
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     ?assertMatch(ok, eredis:stop(C)).
 

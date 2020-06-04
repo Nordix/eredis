@@ -1,6 +1,6 @@
 .PHONY: all compile clean test doc xref dialyzer elvis cover
 
-REDIS_VERSION ?= 6.0.1
+REDIS_VERSION ?= 6.0.4
 
 all: compile xref dialyzer elvis
 
@@ -27,6 +27,14 @@ test-tls:
 		redis:$(REDIS_VERSION) redis-server /conf/redis_tls.conf
 	@rebar3 eunit -v --cover_export_name tls \
 		--suite eredis_tls_tests || { docker logs redis; exit 1; }
+	@docker rm -f redis
+
+ct:
+	@priv/update-client-cert.sh tls_soon_expired_client_certs
+	-@docker rm -f redis
+	@docker run --name redis -d --net=host -v $(shell pwd)/priv/configs:/conf:ro \
+		redis:$(REDIS_VERSION) redis-server /conf/redis_tls.conf
+	@rebar3 ct -v --cover_export_name ct || { docker logs redis; exit 1; }
 	@docker rm -f redis
 
 edoc:

@@ -25,7 +25,7 @@
 -include("eredis.hrl").
 
 -define(CONNECT_TIMEOUT, 5000).
--define(RECONNECT_SLEEP, 100).
+-define(RECONNECT_SLEEP, 1000).
 
 %% API
 -export([start_link/3, stop/1]).
@@ -163,19 +163,25 @@ handle_info({Type, Socket, _}, #state{socket = OurSocket} = State)
     %% arrive after that while we are reconnecting.
     {noreply, State};
 
-%% Socket errors
-handle_info({Type, _Socket, _Reason}, State)
-  when Type =:= tcp_error; Type =:= ssl_error ->
+%% TCP socket errors
+handle_info({tcp_error, _Socket, _Reason}, State) ->
     %% This will be followed by a close
     {noreply, State};
+
+%% SSL socket errors
+%% Called after a connect when the client certificate has expired
+handle_info({ssl_error, _Socket, Reason}, State) ->
+    maybe_reconnect(Reason, State);
 
 %% Socket got closed, for example by Redis terminating idle
 %% clients. If desired, spawn of a new process which will try to reconnect and
 %% notify us when Redis is ready. In the meantime, we can respond with
 %% an error message to all our clients.
-handle_info({Type, _Socket}, State)
-  when Type =:= tcp_closed; Type =:= ssl_closed ->
-    maybe_reconnect(Type, State);
+handle_info({tcp_closed, _Socket}, State) ->
+    maybe_reconnect(tcp_closed, State);
+
+handle_info({ssl_closed, _Socket}, State) ->
+    maybe_reconnect(ssl_closed, State);
 
 
 %% Redis is ready to accept requests, the given Socket is a socket
@@ -468,6 +474,7 @@ maybe_reconnect(Reason, #state{queue = Queue} = State) ->
 %% successfully issuing the auth and select calls. When we have a
 %% connection, give the socket to the redis client.
 reconnect_loop(Client, #state{reconnect_sleep = ReconnectSleep} = State) ->
+    timer:sleep(ReconnectSleep),
     case catch(connect(State)) of
         {ok, #state{socket = Socket}} ->
             Client ! {connection_ready, Socket},
@@ -478,13 +485,11 @@ reconnect_loop(Client, #state{reconnect_sleep = ReconnectSleep} = State) ->
             Msgs = get_all_messages([]),
             [Client ! M || M <- Msgs];
         {error, _Reason} ->
-            timer:sleep(ReconnectSleep),
             reconnect_loop(Client, State);
         %% Something bad happened when connecting, like Redis might be
         %% loading the dataset and we got something other than 'OK' in
         %% auth or select
         _ ->
-            timer:sleep(ReconnectSleep),
             reconnect_loop(Client, State)
     end.
 
