@@ -11,13 +11,18 @@
 connect_test() ->
     ?assertMatch({ok, _}, eredis:start_link()),
     ?assertMatch({ok, _}, eredis:start_link("127.0.0.1", ?PORT)),
-    ?assertMatch({ok, _}, eredis:start_link("localhost", ?PORT)),
-    ?assertMatch({ok, _}, eredis:start_link("localhost", ?PORT, [{database, 0},
+    ?assertMatch({ok, _}, eredis:start_link("127.0.0.1", ?PORT, [{database, 0},
                                                                  {password, ""},
                                                                  {reconnect_sleep, 100},
                                                                  {connect_timeout, 5000},
                                                                  {socket_options, [{keepalive, true}]}
                                                                 ])).
+
+connect_hostname_test() ->
+    Res = eredis:start_link(net_adm:localhost(), ?PORT, [{reconnect_sleep, no_reconnect}]),
+    ?assertMatch({ok, _}, Res),
+    {ok, C} = Res,
+    ?assertMatch(ok, eredis:stop(C)).
 
 connect_local_test() ->
     process_flag(trap_exit, true),
@@ -250,6 +255,10 @@ tcp_closed_test() ->
     tcp_closed_rig(C),
     timer:sleep(1300), %% Wait for reconnection (1000ms)
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
+    ?assertMatch(ok, eredis:stop(C)).
+
+connect_no_reconnect_test() ->
+    C = c_no_reconnect(),
     ?assertMatch(ok, eredis:stop(C)).
 
 tcp_closed_no_reconnect_test() ->
