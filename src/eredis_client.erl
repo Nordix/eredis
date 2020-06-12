@@ -169,7 +169,7 @@ handle_info({tcp_error, _Socket, _Reason}, State) ->
     {noreply, State};
 
 %% SSL socket errors
-%% Called after a connect when the client certificate has expired
+%% TLS 1.3: Called after a connect when the client certificate has expired
 handle_info({ssl_error, _Socket, Reason}, State) ->
     maybe_reconnect(Reason, State);
 
@@ -375,7 +375,7 @@ connect(State) ->
                             {error, {authentication_error, Reason}}
                     end;
                 {error, Reason} ->
-                    {error, {failed_to_upgrade_to_tls, Reason}}
+                    {error, {failed_to_upgrade_to_tls, Reason}} %% Used in TLS v1.2
             end;
         {error, Reason} ->
             {error, {connection_error, Reason}}

@@ -41,12 +41,26 @@ tls_connect_database_test() ->
     ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])),
     ?assertMatch(ok, eredis:stop(C)).
 
-tls_cert_expired_test() ->
+tls_1_2_cert_expired_test() ->
     ExtraOptions = [],
-    ConfigDir = "tls_expired_client_certs",
-    C = c_tls(ExtraOptions, ConfigDir),
+    CertDir = "tls_expired_client_certs",
+    C = c_tls(ExtraOptions, CertDir, [{versions, ['tlsv1.2']}]),
     ?assertMatch({error, no_connection}, eredis:q(C, ["GET", foo])),
     ?assertMatch(ok, eredis:stop(C)).
+
+-ifdef(OTP_RELEASE).
+-if(?OTP_RELEASE >= 22).
+%% In TLS 1.3 the client send the 'certificate' message after the server's 'finished'
+%% so the connect will be ok, but later a ssl_error will arrive
+tls_1_3_cert_expired_test() ->
+    ExtraOptions = [],
+    CertDir = "tls_expired_client_certs",
+    %%io:format(user, "## ~p~n", [ssl:cipher_suites(all, 'tlsv1.3')]),
+    C = c_tls(ExtraOptions, CertDir, [{versions, ['tlsv1.3']}]),
+    ?assertMatch({error, {tls_alert, {certificate_expired, _}}}, eredis:q(C, ["GET", foo])),
+    ?assertMatch(ok, eredis:stop(C)).
+-endif.
+-endif.
 
 %%
 %% Helpers
@@ -57,11 +71,16 @@ c_tls() ->
 c_tls(ExtraOptions) ->
     c_tls(ExtraOptions, "tls").
 
-c_tls(ExtraOptions, ConfigDir) ->
-    Dir = filename:join([code:priv_dir(eredis), "configs", ConfigDir]),
+c_tls(ExtraOptions, CertDir) ->
+    c_tls(ExtraOptions, CertDir, []).
+
+c_tls(ExtraOptions, CertDir, ExtraTlSOptions) ->
+    Dir = filename:join([code:priv_dir(eredis), "configs", CertDir]),
     Options = [{tls, [{cacertfile, filename:join([Dir, "ca.crt"])},
                       {certfile,   filename:join([Dir, "client.crt"])},
-                      {keyfile,    filename:join([Dir, "client.key"])}]}],
+                      {keyfile,    filename:join([Dir, "client.key"])},
+                      {verify,                 verify_peer},
+                      {server_name_indication, "Server"}] ++ ExtraTlSOptions}],
     Res = eredis:start_link("127.0.0.1", ?TLS_PORT, Options ++ ExtraOptions),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
