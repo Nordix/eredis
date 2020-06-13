@@ -361,8 +361,6 @@ connect(State) ->
         {ok, Socket} ->
             case maybe_upgrade_to_tls(Socket, State) of
                 {ok, NewSocket} ->
-                    %% Enter `{active, once}' mode. NOTE: tls/ssl doesn't support `{active, N}'
-                    ok = setopts(NewSocket, State#state.transport, [{active, once}]),
                     case authenticate(NewSocket, State#state.transport, State#state.password) of
                         ok ->
                             case select_database(NewSocket, State#state.transport, State#state.database) of
@@ -382,12 +380,20 @@ connect(State) ->
     end.
 
 maybe_upgrade_to_tls(Socket, #state{transport = tls} = State) ->
-    ssl:connect(Socket, State#state.tls_options, State#state.connect_timeout);
+    %% initial active opt should be 'false' before a possible upgrade to ssl
+    inet:setopts(Socket, [{active, false}]),
+    case ssl:connect(Socket, State#state.tls_options, State#state.connect_timeout) of
+        {ok, NewSocket} ->
+            %% Enter `{active, once}' mode. NOTE: tls/ssl doesn't support `{active, N}'
+            case ssl:setopts(NewSocket, [{active, once}]) of
+                ok -> {ok, NewSocket};
+                Reason -> Reason
+            end;
+        Reason -> Reason
+    end;
+
 maybe_upgrade_to_tls(Socket, _State) ->
     {ok, Socket}.
-
-setopts(Socket, tls, Opts) -> ssl:setopts(Socket, Opts);
-setopts(Socket,   _, Opts) -> inet:setopts(Socket, Opts).
 
 get_addr({local, Path}) ->
     {ok, {local, {local, Path}}};
