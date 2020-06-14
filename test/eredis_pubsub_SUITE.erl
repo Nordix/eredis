@@ -1,33 +1,44 @@
--module(eredis_sub_tests).
+-module(eredis_pubsub_SUITE).
 
--include_lib("eunit/include/eunit.hrl").
+%% Test framework
+-export([ init_per_suite/1
+        , end_per_suite/1
+        , all/0
+        , suite/0
+        ]).
+
+%% Test cases
+-export([ t_pubsub/1
+        , t_pubsub2/1
+        , t_pubsub_manage_subscribers/1
+        , t_pubsub_connect_disconnect_messages/1
+        , t_drop_queue/1
+        , t_crash_queue/1
+        , t_dynamic_channels/1
+        , t_pubsub_pattern/1
+        ]).
+
+-include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 -include("eredis.hrl").
 -include("eredis_sub.hrl").
 
-c() ->
-    Res = eredis:start_link(),
-    ?assertMatch({ok, _}, Res),
-    {ok, C} = Res,
-    C.
+init_per_suite(Config) ->
+    Config.
 
-s() ->
-    Res = eredis_sub:start_link("127.0.0.1", 6379, ""),
-    ?assertMatch({ok, _}, Res),
-    {ok, C} = Res,
-    C.
+end_per_suite(_Config) ->
+    ok.
 
-add_channels(Sub, Channels) ->
-    ok = eredis_sub:controlling_process(Sub),
-    ok = eredis_sub:subscribe(Sub, Channels),
-    lists:foreach(
-      fun (C) ->
-              receive M ->
-                      ?assertEqual({subscribed, C, Sub}, M),
-                      eredis_sub:ack_message(Sub)
-              end
-      end, Channels).
+all() -> [F || {F, _A} <- module_info(exports),
+               case atom_to_list(F) of
+                   "t_" ++ _ -> true;
+                   _         -> false
+               end].
 
-pubsub_test() ->
+suite() -> [{timetrap, {minutes, 1}}].
+
+%% Tests
+t_pubsub(Config) when is_list(Config) ->
     Pub = c(),
     Sub = s(),
     add_channels(Sub, [<<"chan1">>, <<"chan2">>]),
@@ -50,7 +61,7 @@ pubsub_test() ->
     eredis_sub:stop(Sub).
 
 %% Push size so high, the queue will be used
-pubsub2_test() ->
+t_pubsub2(Config) when is_list(Config) ->
     Pub = c(),
     Sub = s(),
     add_channels(Sub, [<<"chan">>]),
@@ -64,7 +75,7 @@ pubsub2_test() ->
     ?assertEqual(500, length(Msgs)),
     eredis_sub:stop(Sub).
 
-pubsub_manage_subscribers_test() ->
+t_pubsub_manage_subscribers(Config) when is_list(Config) ->
     Pub = c(),
     Sub = s(),
     add_channels(Sub, [<<"chan">>]),
@@ -88,8 +99,7 @@ pubsub_manage_subscribers_test() ->
     Ref = erlang:monitor(process, Sub),
     receive {'DOWN', Ref, process, Sub, _} -> ok end.
 
-
-pubsub_connect_disconnect_messages_test() ->
+t_pubsub_connect_disconnect_messages(Config) when is_list(Config) ->
     Pub = c(),
     Sub = s(),
     add_channels(Sub, [<<"chan">>]),
@@ -105,9 +115,7 @@ pubsub_connect_disconnect_messages_test() ->
     ?assertEqual({eredis_connected, Sub}, wait_for_msg(S)),
     eredis_sub:stop(Sub).
 
-
-
-drop_queue_test() ->
+t_drop_queue(Config) when is_list(Config) ->
     Pub = c(),
     {ok, Sub} = eredis_sub:start_link("127.0.0.1", 6379, "", 100, 10, drop),
     add_channels(Sub, [<<"foo">>]),
@@ -119,8 +127,7 @@ drop_queue_test() ->
     receive M2 -> ?assertEqual({dropped, 11}, M2) end,
     eredis_sub:stop(Sub).
 
-
-crash_queue_test() ->
+t_crash_queue(Config) when is_list(Config) ->
     Pub = c(),
     {ok, Sub} = eredis_sub:start_link("127.0.0.1", 6379, "", 100, 10, exit),
     add_channels(Sub, [<<"foo">>]),
@@ -134,9 +141,7 @@ crash_queue_test() ->
     receive M1 -> ?assertEqual({message, <<"foo">>, <<"1">>, Sub}, M1) end,
     receive M2 -> ?assertEqual({'DOWN', Ref, process, Sub, max_queue_size}, M2) end.
 
-
-
-dynamic_channels_test() ->
+t_dynamic_channels(Config) when is_list(Config) ->
     Pub = c(),
     {ok, Sub} = eredis_sub:start_link(),
     ok = eredis_sub:controlling_process(Sub),
@@ -172,6 +177,63 @@ dynamic_channels_test() ->
 
     ?assertEqual({ok, [<<"newchan">>]}, eredis_sub:channels(Sub)).
 
+% Tests for Pattern Subscribe
+t_pubsub_pattern(Config) when is_list(Config) ->
+    Pub = c(),
+    Sub = s(),
+    add_channels_pattern(Sub, [<<"chan1*">>, <<"chan2*">>]),
+    ok = eredis_sub:controlling_process(Sub),
+
+    ?assertEqual({ok, <<"1">>}, eredis:q(Pub, ["PUBLISH", <<"chan123">>, <<"msg">>])),
+    receive
+        {pmessage, _Pattern, _Channel, _Message, _} = M ->
+            ?assertEqual({pmessage, <<"chan1*">>, <<"chan123">>, <<"msg">>, Sub}, M)
+    after 10 ->
+            throw(timeout)
+    end,
+
+    eredis_sub:punsubscribe(Sub, [<<"chan1*">> , <<"chan2*">>]),
+    eredis_sub:ack_message(Sub),
+    eredis_sub:ack_message(Sub),
+    receive {unsubscribed, _, _} = M2 -> ?assertEqual({unsubscribed, <<"chan1*">>, Sub}, M2) end,
+    eredis_sub:ack_message(Sub),
+    receive {unsubscribed, _, _} =  M3 -> ?assertEqual({unsubscribed, <<"chan2*">>, Sub}, M3) end,
+    eredis_sub:ack_message(Sub),
+
+    ?assertEqual({ok, <<"0">>}, eredis:q(Pub, ["PUBLISH", <<"chan123">>, <<"msg">>])),
+    receive
+        Msg -> throw({unexpected_message, Msg})
+    after 10 ->
+            ok
+    end,
+
+    eredis_sub:stop(Sub).
+
+%%
+%% Helpers
+%%
+c() ->
+    Res = eredis:start_link(),
+    ?assertMatch({ok, _}, Res),
+    {ok, C} = Res,
+    C.
+
+s() ->
+    Res = eredis_sub:start_link("127.0.0.1", 6379, ""),
+    ?assertMatch({ok, _}, Res),
+    {ok, C} = Res,
+    C.
+
+add_channels(Sub, Channels) ->
+    ok = eredis_sub:controlling_process(Sub),
+    ok = eredis_sub:subscribe(Sub, Channels),
+    lists:foreach(
+      fun (C) ->
+              receive M ->
+                      ?assertEqual({subscribed, C, Sub}, M),
+                      eredis_sub:ack_message(Sub)
+              end
+      end, Channels).
 
 recv_all(Sub) ->
     recv_all(Sub, []).
@@ -228,12 +290,6 @@ get_state([{data, [{"State", State}]} | _]) ->
 get_state([_|Rest]) ->
     get_state(Rest).
 
-
-
-
-
-% Tests for Pattern Subscribe
-
 add_channels_pattern(Sub, Channels) ->
     ok = eredis_sub:controlling_process(Sub),
     ok = eredis_sub:psubscribe(Sub, Channels),
@@ -244,42 +300,3 @@ add_channels_pattern(Sub, Channels) ->
                       eredis_sub:ack_message(Sub)
               end
       end, Channels).
-
-
-
-
-
-pubsub_pattern_test() ->
-    Pub = c(),
-    Sub = s(),
-    add_channels_pattern(Sub, [<<"chan1*">>, <<"chan2*">>]),
-    ok = eredis_sub:controlling_process(Sub),
-
-    ?assertEqual({ok, <<"1">>}, eredis:q(Pub, ["PUBLISH", <<"chan123">>, <<"msg">>])),
-    receive
-        {pmessage, _Pattern, _Channel, _Message, _} = M ->
-            ?assertEqual({pmessage, <<"chan1*">>, <<"chan123">>, <<"msg">>, Sub}, M)
-    after 10 ->
-            throw(timeout)
-    end,
-
-    eredis_sub:punsubscribe(Sub, [<<"chan1*">> , <<"chan2*">>]),
-    eredis_sub:ack_message(Sub),
-    eredis_sub:ack_message(Sub),
-    receive {unsubscribed, _, _} = M2 -> ?assertEqual({unsubscribed, <<"chan1*">>, Sub}, M2) end,
-    eredis_sub:ack_message(Sub),
-    receive {unsubscribed, _, _} =  M3 -> ?assertEqual({unsubscribed, <<"chan2*">>, Sub}, M3) end,
-    eredis_sub:ack_message(Sub),
-
-    ?assertEqual({ok, <<"0">>}, eredis:q(Pub, ["PUBLISH", <<"chan123">>, <<"msg">>])),
-    receive
-        Msg -> throw({unexpected_message, Msg})
-    after 10 ->
-            ok
-    end,
-
-    eredis_sub:stop(Sub).
-
-
-
-

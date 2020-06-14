@@ -11,30 +11,27 @@ clean:
 	@rebar3 clean
 	@rm -rf _build
 
-test: test-tls test-tcp
+test: ut ct
 
-test-tcp:
+ut:
+	@rebar3 eunit -v --cover_export_name ut
+
+ct: ct-tcp ct-tls
+
+ct-tcp:
 	-@docker rm -f redis
 	@docker run --name redis -d --net=host redis:$(REDIS_VERSION)
-	@rebar3 eunit -v --cover_export_name tcp \
-		--suite eredis_parser_tests,eredis_sub_tests,eredis_tests || \
-		{ docker logs redis; exit 1; }
+	@rebar3 ct -v --cover_export_name ct-tcp \
+		--suite eredis_tcp_SUITE,eredis_pubsub_SUITE || { docker logs redis; exit 1; }
 	@docker rm -f redis
 
-test-tls:
-	-@docker rm -f redis
-	@docker run --name redis -d --net=host -v $(shell pwd)/priv/configs:/conf:ro \
-		redis:$(REDIS_VERSION) redis-server /conf/redis_tls.conf
-	@rebar3 eunit -v --cover_export_name tls \
-		--suite eredis_tls_tests || { docker logs redis; exit 1; }
-	@docker rm -f redis
-
-ct:
+ct-tls:
 	@priv/update-client-cert.sh tls_soon_expired_client_certs
 	-@docker rm -f redis
 	@docker run --name redis -d --net=host -v $(shell pwd)/priv/configs:/conf:ro \
 		redis:$(REDIS_VERSION) redis-server /conf/redis_tls.conf
-	@rebar3 ct -v --cover_export_name ct || { docker logs redis; exit 1; }
+	@rebar3 ct -v --cover_export_name ct-tls \
+		--suite eredis_tls_SUITE || { docker logs redis; exit 1; }
 	@docker rm -f redis
 
 edoc:

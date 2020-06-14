@@ -8,12 +8,6 @@ dist: bionic
 services:
   - docker
 
-# Install latest rebar3 and elvis
-before_install:
-  - git clone https://github.com/erlang/rebar3.git && cd rebar3 && git checkout 3.13.1 && ./bootstrap && sudo mv rebar3 /usr/local/bin/ && cd ..
-  - git clone https://github.com/inaka/elvis.git && cd elvis && rebar3 escriptize && sudo cp _build/default/bin/elvis /usr/bin && cd ..
-  - sudo docker info
-
 notifications:
   email: false
 
@@ -23,6 +17,12 @@ otp_release:
   - 22.1
   - 21.2
   - 20.3.8
+
+install:
+  - sudo apt-get install -qq --no-install-recommends faketime
+  - sudo docker info
+  - git clone https://github.com/erlang/rebar3.git && cd rebar3 && git checkout 3.13.1 && ./bootstrap && sudo mv rebar3 /usr/local/bin/ && cd ..
+  - git clone https://github.com/inaka/elvis.git && cd elvis && rebar3 escriptize && sudo cp _build/default/bin/elvis /usr/bin && cd ..
 
 script:
   - make elvis

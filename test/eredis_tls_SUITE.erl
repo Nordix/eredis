@@ -1,10 +1,48 @@
--module(eredis_tls_tests).
+-module(eredis_tls_SUITE).
 
--include_lib("eunit/include/eunit.hrl").
+%% Test framework
+-export([ init_per_suite/1
+        , end_per_suite/1
+        , all/0
+        , suite/0
+        ]).
+%% Test cases
+-export([ t_tls_connect/1
+        , t_tls_get_set/1
+        , t_tls_closed/1
+        , t_tls_connect_database/1
+        , t_tls_1_2_cert_expired/1
+        , t_soon_expiring_cert/1
+        ]).
+
+-ifdef(OTP_RELEASE).
+-if(?OTP_RELEASE >= 22).
+-export([ t_tls_1_3_cert_expired/1 ]).
+-endif.
+-endif.
+
+-include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -define(TLS_PORT, 6380).
 
-tls_connect_test() ->
+init_per_suite(Config) ->
+    Config.
+
+end_per_suite(_Config) ->
+    ok.
+
+all() -> [F || {F, _A} <- module_info(exports),
+               case atom_to_list(F) of
+                   "t_" ++ _ -> true;
+                   _         -> false
+               end].
+
+suite() -> [{timetrap, {minutes, 3}}].
+
+%% Tests
+
+t_tls_connect(Config) when is_list(Config) ->
     C = c_tls(),
     process_flag(trap_exit, true),
     ?assertMatch(ok, eredis:stop(C)),
@@ -14,7 +52,7 @@ tls_connect_test() ->
     ?assertEqual(died, IsDead),
     ?assertExit({noproc, _}, eredis:q(C, ["SET", foo, bar])).
 
-tls_get_set_test() ->
+t_tls_get_set(Config) when is_list(Config) ->
     C = c_tls(),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
 
@@ -23,7 +61,7 @@ tls_get_set_test() ->
     ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])),
     ?assertMatch(ok, eredis:stop(C)).
 
-tls_closed_test() ->
+t_tls_closed(Config) when is_list(Config) ->
     C = c_tls(),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     tls_closed_rig(C),
@@ -31,7 +69,7 @@ tls_closed_test() ->
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     ?assertMatch(ok, eredis:stop(C)).
 
-tls_connect_database_test() ->
+t_tls_connect_database(Config) when is_list(Config) ->
     ExtraOptions = [{database, 2}],
     C = c_tls(ExtraOptions),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
@@ -41,7 +79,7 @@ tls_connect_database_test() ->
     ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])),
     ?assertMatch(ok, eredis:stop(C)).
 
-tls_1_2_cert_expired_test() ->
+t_tls_1_2_cert_expired(Config) when is_list(Config) ->
     ExtraOptions = [],
     CertDir = "tls_expired_client_certs",
     C = c_tls(ExtraOptions, CertDir, [{versions, ['tlsv1.2']}]),
@@ -52,7 +90,7 @@ tls_1_2_cert_expired_test() ->
 -if(?OTP_RELEASE >= 22).
 %% In TLS 1.3 the client send the 'certificate' message after the server's 'finished'
 %% so the connect will be ok, but later a ssl_error will arrive
-tls_1_3_cert_expired_test() ->
+t_tls_1_3_cert_expired(Config) when is_list(Config) ->
     ExtraOptions = [],
     CertDir = "tls_expired_client_certs",
     %%io:format(user, "## ~p~n", [ssl:cipher_suites(all, 'tlsv1.3')]),
@@ -61,6 +99,50 @@ tls_1_3_cert_expired_test() ->
     ?assertMatch(ok, eredis:stop(C)).
 -endif.
 -endif.
+
+t_soon_expiring_cert(Config) when is_list(Config) ->
+    Dir = filename:join([code:priv_dir(eredis), "configs", "tls_soon_expired_client_certs"]),
+    Options = [{tls, [{cacertfile, filename:join([Dir, "ca.crt"])},
+                      {certfile,   filename:join([Dir, "client.crt"])},
+                      {keyfile,    filename:join([Dir, "client.key"])},
+                      {verify,     verify_peer},
+                      {server_name_indication, "Server"}]}],
+
+    ct:pal("Connect a client with a certificate that expires in 1 minute"),
+    Res = eredis:start_link("127.0.0.1", ?TLS_PORT, Options),
+    ?assertMatch({ok, _}, Res),
+    {ok, C} = Res,
+
+    ?assertEqual({ok, undefined}, eredis:q(C, ["GET", foo])),
+    ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["SET", foo, bar1])),
+    ?assertEqual({ok, <<"bar1">>}, eredis:q(C, ["GET", foo])),
+
+    ct:pal(user, "Sleep 1 minute [1 of 2]"),
+    timer:sleep(1 * 60 * 1000),
+
+    %% Client works even when certificate has expired
+    ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["SET", foo, bar2])),
+    ?assertEqual({ok, <<"bar2">>}, eredis:q(C, ["GET", foo])),
+
+    ct:pal(user, "Sleep 1 minute [2 of 2]"),
+    timer:sleep(1 * 60 * 1000),
+
+    ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["SET", foo, bar3])),
+    ?assertEqual({ok, <<"bar3">>}, eredis:q(C, ["GET", foo])),
+    ct:pal(user, "Stopping client"),
+    ?assertMatch(ok, eredis:stop(C)),
+
+    %% Reconnect, will give ok during connect+handshake
+    %% but trigger a ssl_error that makes the client try reconnect
+    ct:pal("Reconnect, now with expired certificate..."),
+    Res2 = eredis:start_link("127.0.0.1", ?TLS_PORT, Options),
+    ?assertMatch({ok, _}, Res2),
+    {ok, C2} = Res2,
+
+    timer:sleep(200),
+
+    ?assertEqual({error, no_connection}, eredis:q(C2, ["SET", foo, bar4])),
+    ?assertMatch(ok, eredis:stop(C2)).
 
 %%
 %% Helpers
