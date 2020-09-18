@@ -347,7 +347,7 @@ safe_send(Pid, Value) ->
 %% returns something we don't expect, we crash.
 %% Returns: {ok, State} or {SomeError, Reason}.
 connect(State) ->
-    {ok, {AFamily, Addr}} = get_addr(State#state.host),
+    {ok, {AFamily, Addrs}} = get_addrs(State#state.host),
     Port = case AFamily of
                local -> 0;
                _ -> State#state.port
@@ -357,6 +357,9 @@ connect(State) ->
                                     lists:keysort(1, ?SOCKET_OPTS)),
     ConnectOptions = [AFamily | [?SOCKET_MODE | SocketOptions]],
 
+    connect_next_addr(Addrs, Port, SocketOptions, ConnectOptions, State).
+
+connect_next_addr([Addr|Addrs], Port, SocketOptions, ConnectOptions, State) ->
     case gen_tcp:connect(Addr, Port, ConnectOptions, State#state.connect_timeout) of
         {ok, Socket} ->
             case maybe_upgrade_to_tls(Socket, State) of
@@ -375,8 +378,11 @@ connect(State) ->
                 {error, Reason} ->
                     {error, {failed_to_upgrade_to_tls, Reason}} %% Used in TLS v1.2
             end;
-        {error, Reason} ->
-            {error, {connection_error, Reason}}
+        {error, Reason} when Addrs =:= [] ->
+            {error, {connection_error, Reason}};
+        {error, _Reason} ->
+            %% Try next address
+            connect_next_addr(Addrs, Port, SocketOptions, ConnectOptions, State)
     end.
 
 maybe_upgrade_to_tls(Socket, #state{transport = tls} = State) ->
@@ -395,22 +401,32 @@ maybe_upgrade_to_tls(Socket, #state{transport = tls} = State) ->
 maybe_upgrade_to_tls(Socket, _State) ->
     {ok, Socket}.
 
-get_addr({local, Path}) ->
-    {ok, {local, {local, Path}}};
-get_addr(Hostname) ->
+get_addrs({local, Path}) ->
+    {ok, {local, [{local, Path}]}};
+get_addrs(Hostname) ->
     case inet:parse_address(Hostname) of
-        {ok, {_, _, _, _} = Addr} ->             {ok, {inet, Addr}};
-        {ok, {_, _, _, _, _, _, _, _} = Addr} -> {ok, {inet6, Addr}};
+        {ok, {_, _, _, _} = Addr} ->             {ok, {inet, [Addr]}};
+        {ok, {_, _, _, _, _, _, _, _} = Addr} -> {ok, {inet6, [Addr]}};
         {error, einval} ->
-            case inet:getaddr(Hostname, inet6) of
+            case inet:getaddrs(Hostname, inet6) of
                 {error, _} ->
-                    case inet:getaddr(Hostname, inet) of
-                        {ok, Addr}-> {ok, {inet, Addr}};
-                        {error, _} = Res -> Res
+                    case inet:getaddrs(Hostname, inet) of
+                        {ok, Addrs} ->
+			    {ok, {inet, deduplicate(Addrs)}};
+                        {error, _} = Res ->
+			    Res
                     end;
-                {ok, Addr} -> {ok, {inet6, Addr}}
+                {ok, Addrs} ->
+		    {ok, {inet6, deduplicate(Addrs)}}
             end
     end.
+
+%% Removes duplicates without sorting.
+deduplicate([X|Xs]) ->
+    [X | deduplicate([Y || Y <- Xs,
+			   Y =/= X])];
+deduplicate([]) ->
+    [].
 
 select_database(_Socket, _TransportType, undefined) ->
     ok;
