@@ -206,15 +206,7 @@ handle_info(Info, State) ->
     {stop, {unhandled_message, Info}, State}.
 
 terminate(_Reason, State) ->
-    case State#state.socket of
-        undefined -> ok;
-        Socket    ->
-            case State#state.transport of
-                tls -> ssl:close(Socket);
-                _   -> gen_tcp:close(Socket)
-            end
-    end,
-    ok.
+    close_socket(State, State#state.socket).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -367,12 +359,15 @@ connect(State) ->
                                 ok ->
                                     {ok, State#state{socket = NewSocket}};
                                 {error, Reason} ->
+                                    close_socket(State, NewSocket),
                                     {error, {select_error, Reason}}
                             end;
                         {error, Reason} ->
+                            close_socket(State, NewSocket),
                             {error, {authentication_error, Reason}}
                     end;
                 {error, Reason} ->
+                    gen_tcp:close(Socket),
                     {error, {failed_to_upgrade_to_tls, Reason}} %% Used in TLS v1.2
             end;
         {error, Reason} ->
@@ -456,6 +451,10 @@ do_sync_command(Socket, _, Command) ->
         {error, Reason} ->
             {error, Reason}
     end.
+
+close_socket(_State, _Socket = undefined) -> ok;
+close_socket(#state{transport = tls}, Socket) -> ssl:close(Socket);
+close_socket(#state{transport = tcp}, Socket) -> gen_tcp:close(Socket).
 
 maybe_reconnect(Reason, #state{reconnect_sleep = no_reconnect, queue = Queue} = State) ->
     reply_all({error, Reason}, Queue),

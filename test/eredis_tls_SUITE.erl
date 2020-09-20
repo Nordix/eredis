@@ -13,6 +13,7 @@
         , t_tls_connect_database/1
         , t_tls_1_2_cert_expired/1
         , t_soon_expiring_cert/1
+        , t_reconnect/1
         ]).
 
 -ifdef(OTP_RELEASE).
@@ -23,6 +24,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
+
+-import(eredis_test_utils, [get_tcp_ports/0]).
 
 -define(TLS_PORT, 6380).
 
@@ -143,6 +146,19 @@ t_soon_expiring_cert(Config) when is_list(Config) ->
 
     ?assertEqual({error, no_connection}, eredis:q(C2, ["SET", foo, bar4])),
     ?assertMatch(ok, eredis:stop(C2)).
+
+%% Make sure a reconnect cleanup old sockets
+%% i.e we have maximum 1 tcp/tls port open
+t_reconnect(Config) when is_list(Config) ->
+    ?assertEqual(0, length(get_tcp_ports())),
+    ExtraOptions = [{password, "wrong_password"},
+                    {reconnect_sleep, 100},
+                    {connect_timeout, 200}],
+    C = c_tls(ExtraOptions),
+    timer:sleep(2000),
+    ?assert(length(get_tcp_ports()) =< 1),
+    ?assertMatch(ok, eredis:stop(C)),
+    ?assertEqual(0, length(get_tcp_ports())).
 
 %%
 %% Helpers

@@ -32,11 +32,14 @@
         , t_tcp_closed/1
         , t_connect_no_reconnect/1
         , t_tcp_closed_no_reconnect/1
+        , t_reconnect/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
 -include("eredis.hrl").
+
+-import(eredis_test_utils, [get_tcp_ports/0]).
 
 -define(PORT, 6379).
 -define(WRONG_PORT, 6378).
@@ -300,6 +303,18 @@ t_connect_no_reconnect(Config) when is_list(Config) ->
 t_tcp_closed_no_reconnect(Config) when is_list(Config) ->
     C = c_no_reconnect(),
     tcp_closed_rig(C).
+
+%% Make sure a reconnect cleanup old sockets
+%% i.e we only have maximum 1 tcp port open
+t_reconnect(Config) when is_list(Config) ->
+    ?assertEqual(0, length(get_tcp_ports())),
+    {ok, C} = eredis:start_link("127.0.0.1", ?PORT, [{password, "wrong_password"},
+                                                     {reconnect_sleep, 100},
+                                                     {connect_timeout, 200}]),
+    timer:sleep(2000),
+    ?assert(length(get_tcp_ports()) =< 1),
+    ?assertMatch(ok, eredis:stop(C)),
+    ?assertEqual(0, length(get_tcp_ports())).
 
 %%
 %% Helpers
