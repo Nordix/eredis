@@ -47,7 +47,7 @@
                 socket_options  :: list(),
                 tls_options     :: list(),
 
-                transport       :: tcp | tls | undefined,
+                transport       :: gen_tcp | ssl | undefined,
                 socket          :: gen_tcp:socket() | ssl:sslsocket() | undefined,
                 parser_state    :: #pstate{} | undefined,
                 queue           :: eredis_queue() | undefined
@@ -80,8 +80,8 @@ init([Host, Port, Options]) ->
     SocketOptions  = proplists:get_value(socket_options, Options, []),
     TlsOptions     = proplists:get_value(tls, Options, []),
     Transport      = case TlsOptions of
-                         [] -> tcp;
-                         _ -> tls
+                         [] -> gen_tcp;
+                         _ -> ssl
                      end,
 
     State = #state{host = Host,
@@ -222,12 +222,8 @@ code_change(_OldVsn, State, _Extra) ->
 do_request(_Req, _From, #state{socket = undefined} = State) ->
     {reply, {error, no_connection}, State};
 
-do_request(Req, From, State) ->
-    Result = case State#state.transport of
-                 tls -> ssl:send(State#state.socket, Req);
-                 _   -> gen_tcp:send(State#state.socket, Req)
-             end,
-    case Result of
+do_request(Req, From, #state{socket=Socket, transport=Transport}=State) ->
+    case Transport:send(Socket, Req) of
         ok ->
             NewQueue = queue:in({1, From}, State#state.queue),
             {noreply, State#state{queue = NewQueue}};
@@ -242,12 +238,8 @@ do_request(Req, From, State) ->
 do_pipeline(_Pipeline, _From, #state{socket = undefined} = State) ->
     {reply, {error, no_connection}, State};
 
-do_pipeline(Pipeline, From, State) ->
-    Result = case State#state.transport of
-                 tls -> ssl:send(State#state.socket, Pipeline);
-                 _   -> gen_tcp:send(State#state.socket, Pipeline)
-             end,
-    case Result of
+do_pipeline(Pipeline, From, #state{socket=Socket, transport=Transport}=State) ->
+    case Transport:send(Socket, Pipeline) of
         ok ->
             NewQueue = queue:in({length(Pipeline), From, []}, State#state.queue),
             {noreply, State#state{queue = NewQueue}};
@@ -335,8 +327,8 @@ safe_send(Pid, Value) ->
     end.
 
 %% @doc: Helper for connecting to Redis, authenticating and selecting
-%% the correct database. These commands are synchronous and if Redis
-%% returns something we don't expect, we crash.
+%% the correct database. These commands are synchronous and if socket
+%% handling returns something we don't expect, we crash.
 %% Returns: {ok, State} or {SomeError, Reason}.
 connect(State) ->
     {ok, {AFamily, Addrs}} = get_addrs(State#state.host),
@@ -380,7 +372,7 @@ connect_next_addr([Addr|Addrs], Port, SocketOptions, ConnectOptions, State) ->
             connect_next_addr(Addrs, Port, SocketOptions, ConnectOptions, State)
     end.
 
-maybe_upgrade_to_tls(Socket, #state{transport = tls} = State) ->
+maybe_upgrade_to_tls(Socket, #state{transport = ssl} = State) ->
     %% initial active opt should be 'false' before a possible upgrade to ssl
     inet:setopts(Socket, [{active, false}]),
     case ssl:connect(Socket, State#state.tls_options, State#state.connect_timeout) of
@@ -437,30 +429,14 @@ authenticate(Socket, TransportType, Password) ->
 
 %% @doc: Executes the given command synchronously, expects Redis to
 %% return "+OK\r\n", otherwise it will fail.
-do_sync_command(Socket, tls, Command) ->
-    ok = ssl:setopts(Socket, [{active, false}]),
-    case ssl:send(Socket, Command) of
+do_sync_command(Socket, Transport, Command) ->
+    ok = setopts(Socket, Transport, [{active, false}]),
+    case Transport:send(Socket, Command) of
         ok ->
             %% Hope there's nothing else coming down on the socket..
-            case ssl:recv(Socket, 0, ?RECV_TIMEOUT) of
+            case Transport:recv(Socket, 0, ?RECV_TIMEOUT) of
                 {ok, <<"+OK\r\n">>} ->
-                    ok = ssl:setopts(Socket, [{active, once}]),
-                    ok;
-                Other ->
-                    {error, {unexpected_data, Other}}
-            end;
-        {error, Reason} ->
-            {error, Reason}
-    end;
-do_sync_command(Socket, _, Command) ->
-    ok = inet:setopts(Socket, [{active, false}]),
-    case gen_tcp:send(Socket, Command) of
-        ok ->
-            %% Hope there's nothing else coming down on the socket..
-            case gen_tcp:recv(Socket, 0, ?RECV_TIMEOUT) of
-                {ok, <<"+OK\r\n">>} ->
-                    ok = inet:setopts(Socket, [{active, once}]),
-                    ok;
+                    ok = setopts(Socket, Transport, [{active, once}]);
                 Other ->
                     {error, {unexpected_data, Other}}
             end;
@@ -469,8 +445,11 @@ do_sync_command(Socket, _, Command) ->
     end.
 
 close_socket(_State, _Socket = undefined) -> ok;
-close_socket(#state{transport = tls}, Socket) -> ssl:close(Socket);
-close_socket(#state{transport = tcp}, Socket) -> gen_tcp:close(Socket).
+close_socket(#state{transport = ssl}, Socket) -> ssl:close(Socket);
+close_socket(#state{transport = gen_tcp}, Socket) -> gen_tcp:close(Socket).
+
+setopts(Socket, _Transport=gen_tcp, Opts) -> inet:setopts(Socket, Opts);
+setopts(Socket, _Transport=ssl, Opts)     ->  ssl:setopts(Socket, Opts).
 
 maybe_reconnect(Reason, #state{reconnect_sleep = no_reconnect, queue = Queue} = State) ->
     reply_all({error, Reason}, Queue),
@@ -494,15 +473,12 @@ maybe_reconnect(Reason, #state{queue = Queue} = State) ->
 %% @doc: Loop until a connection can be established, this includes
 %% successfully issuing the auth and select calls. When we have a
 %% connection, give the socket to the redis client.
-reconnect_loop(Client, #state{reconnect_sleep = ReconnectSleep} = State) ->
+reconnect_loop(Client, #state{reconnect_sleep=ReconnectSleep, transport=Transport}=State) ->
     timer:sleep(ReconnectSleep),
     case catch(connect(State)) of
         {ok, #state{socket = Socket}} ->
             Client ! {connection_ready, Socket},
-            case State#state.transport of
-                tls -> ssl:controlling_process(Socket, Client);
-                _   -> gen_tcp:controlling_process(Socket, Client)
-            end,
+            Transport:controlling_process(Socket, Client),
             Msgs = get_all_messages([]),
             [Client ! M || M <- Msgs];
         {error, _Reason} ->
