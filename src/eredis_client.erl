@@ -399,19 +399,19 @@ get_addrs(Hostname) ->
                 {error, _} ->
                     case inet:getaddrs(Hostname, inet) of
                         {ok, Addrs} ->
-			    {ok, {inet, deduplicate(Addrs)}};
+                            {ok, {inet, deduplicate(Addrs)}};
                         {error, _} = Res ->
-			    Res
+                            Res
                     end;
                 {ok, Addrs} ->
-		    {ok, {inet6, deduplicate(Addrs)}}
+                    {ok, {inet6, deduplicate(Addrs)}}
             end
     end.
 
 %% Removes duplicates without sorting.
 deduplicate([X|Xs]) ->
     [X | deduplicate([Y || Y <- Xs,
-			   Y =/= X])];
+                           Y =/= X])];
 deduplicate([]) ->
     [].
 
