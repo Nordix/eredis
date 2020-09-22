@@ -460,7 +460,9 @@ maybe_reconnect(Reason, #state{queue = Queue} = State) ->
     error_logger:error_msg("eredis: Re-establishing connection to ~p:~p due to ~p",
                            [State#state.host, State#state.port, Reason]),
     Self = self(),
-    spawn_link(fun() -> reconnect_loop(Self, State) end),
+    spawn_link(fun() -> process_flag(trap_exit, true),
+                        reconnect_loop(Self, State)
+               end),
 
     %% tell all of our clients what has happened.
     reply_all({error, Reason}, Queue),
@@ -474,20 +476,24 @@ maybe_reconnect(Reason, #state{queue = Queue} = State) ->
 %% successfully issuing the auth and select calls. When we have a
 %% connection, give the socket to the redis client.
 reconnect_loop(Client, #state{reconnect_sleep=ReconnectSleep, transport=Transport}=State) ->
-    timer:sleep(ReconnectSleep),
-    case catch(connect(State)) of
-        {ok, #state{socket = Socket}} ->
-            Client ! {connection_ready, Socket},
-            Transport:controlling_process(Socket, Client),
-            Msgs = get_all_messages([]),
-            [Client ! M || M <- Msgs];
-        {error, _Reason} ->
-            reconnect_loop(Client, State);
-        %% Something bad happened when connecting, like Redis might be
-        %% loading the dataset and we got something other than 'OK' in
-        %% auth or select
-        _ ->
-            reconnect_loop(Client, State)
+    receive
+        {'EXIT', Client, Reason} -> exit(Reason)
+    after
+        ReconnectSleep ->
+            case catch(connect(State)) of
+                {ok, #state{socket = Socket}} ->
+                    Client ! {connection_ready, Socket},
+                    Transport:controlling_process(Socket, Client),
+                    Msgs = get_all_messages([]),
+                    [Client ! M || M <- Msgs];
+                {error, _Reason} ->
+                    reconnect_loop(Client, State);
+                %% Something bad happened when connecting, like Redis might be
+                %% loading the dataset and we got something other than 'OK' in
+                %% auth or select
+                _ ->
+                    reconnect_loop(Client, State)
+            end
     end.
 
 read_database(undefined) ->

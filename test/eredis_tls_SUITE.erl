@@ -155,9 +155,10 @@ t_reconnect(Config) when is_list(Config) ->
                     {reconnect_sleep, 100},
                     {connect_timeout, 200}],
     C = c_tls(ExtraOptions),
-    timer:sleep(2000),
+    timer:sleep(1000), %% expect a couple of reconnect attempts
     ?assert(length(get_tcp_ports()) =< 1),
     ?assertMatch(ok, eredis:stop(C)),
+    timer:sleep(200), %% Wait for reconnect process to terminate
     ?assertEqual(0, length(get_tcp_ports())).
 
 %%

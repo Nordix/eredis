@@ -7,6 +7,7 @@ Improvements and changes compared to `wooga/eredis`:
 * Support of TLS introduced in Redis 6
 * Changed API: `start_link` takes a proplist with options
 * Correction regarding chunked error responses
+* Correction regarding termination of the reconnect process
 * Dialyzer corrections
 * Elvis code formatting
 * Improved test coverage

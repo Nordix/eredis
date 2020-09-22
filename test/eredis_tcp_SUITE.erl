@@ -311,9 +311,10 @@ t_reconnect(Config) when is_list(Config) ->
     {ok, C} = eredis:start_link("127.0.0.1", ?PORT, [{password, "wrong_password"},
                                                      {reconnect_sleep, 100},
                                                      {connect_timeout, 200}]),
-    timer:sleep(2000),
+    timer:sleep(1000), %% expect a couple of reconnect attempts
     ?assert(length(get_tcp_ports()) =< 1),
     ?assertMatch(ok, eredis:stop(C)),
+    timer:sleep(200), %% Wait for reconnect process to terminate
     ?assertEqual(0, length(get_tcp_ports())).
 
 %%
