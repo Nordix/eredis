@@ -153,36 +153,51 @@ handle_info({ssl, Socket, Data}, #state{socket = Socket} = State) ->
     ok = ssl:setopts(Socket, [{active, once}]),
     {noreply, handle_response(Data, State)};
 
-handle_info({Type, Socket, _}, #state{socket = OurSocket} = State)
-  when OurSocket =/= Socket, Type =:= tcp;
-       OurSocket =/= Socket, Type =:= ssl ->
-    %% Ignore tcp messages when the socket in message doesn't match
-    %% our state. In order to test behavior around receiving
-    %% tcp_closed message with clients waiting in queue, we send a
-    %% fake tcp_close message. This allows us to ignore messages that
-    %% arrive after that while we are reconnecting.
-    {noreply, State};
-
-%% TCP socket errors
-handle_info({tcp_error, _Socket, _Reason}, State) ->
-    %% This will be followed by a close
-    {noreply, State};
-
-%% SSL socket errors
+%% Socket errors. If the network or peer is down, the error is not
+%% always followed by a tcp_closed.
+%%
 %% TLS 1.3: Called after a connect when the client certificate has expired
-handle_info({ssl_error, _Socket, Reason}, State) ->
+handle_info({Error, Socket, Reason},
+            #state{socket = Socket, transport = Transport} = State)
+  when Error =:= tcp_error; Error =:= ssl_error ->
+    Transport:close(Socket),
     maybe_reconnect(Reason, State);
 
 %% Socket got closed, for example by Redis terminating idle
 %% clients. If desired, spawn of a new process which will try to reconnect and
 %% notify us when Redis is ready. In the meantime, we can respond with
 %% an error message to all our clients.
-handle_info({tcp_closed, _Socket}, State) ->
-    maybe_reconnect(tcp_closed, State);
+%%
+%% fake_socket is used for testing.
+handle_info({Closed, Socket}, #state{socket = OurSocket} = State)
+  when Closed =:= tcp_closed orelse Closed =:= ssl_closed,
+       Socket =:= OurSocket orelse Socket =:= fake_socket ->
+    maybe_reconnect(Closed, State);
 
-handle_info({ssl_closed, _Socket}, State) ->
-    maybe_reconnect(ssl_closed, State);
+%% Ignore messages and errors for an old socket.
+handle_info({Type, Socket, _}, #state{socket = OurSocket} = State)
+  when OurSocket =/= Socket,
+       Type =:= tcp       orelse Type =:= ssl       orelse
+       Type =:= tcp_error orelse Type =:= ssl_error ->
+    %% Ignore tcp messages and errors when the socket in message
+    %% doesn't match our state.
+    {noreply, State};
 
+handle_info({Type, Socket}, #state{socket = OurSocket} = State)
+  when OurSocket =/= Socket,
+       Type =:= tcp_closed orelse Type =:= ssl_closed ->
+    {noreply, State};
+
+%% Errors returned by gen_tcp:send/2 and ssl:send/2 are handled
+%% asynchronously by message passing to self.
+handle_info({send_error, Socket, Reason},
+            #state{transport = Transport, socket = Socket} = State) ->
+    Transport:close(Socket),
+    maybe_reconnect(Reason, State);
+
+handle_info({send_error, _Socket, _Reason}, State) ->
+    %% Socket doesn't match the state. Ignore.
+    {noreply, State};
 
 %% Redis is ready to accept requests, the given Socket is a socket
 %% already connected and authenticated.
@@ -228,6 +243,7 @@ do_request(Req, From, #state{socket=Socket, transport=Transport}=State) ->
             NewQueue = queue:in({1, From}, State#state.queue),
             {noreply, State#state{queue = NewQueue}};
         {error, Reason} ->
+            self() ! {send_error, Socket, Reason},
             {reply, {error, Reason}, State}
     end.
 
@@ -244,6 +260,7 @@ do_pipeline(Pipeline, From, #state{socket=Socket, transport=Transport}=State) ->
             NewQueue = queue:in({length(Pipeline), From, []}, State#state.queue),
             {noreply, State#state{queue = NewQueue}};
         {error, Reason} ->
+            self() ! {send_error, Socket, Reason},
             {reply, {error, Reason}, State}
     end.
 
