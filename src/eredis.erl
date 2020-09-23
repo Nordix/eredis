@@ -13,7 +13,7 @@
 %% Specified in http://www.erlang.org/doc/man/gen_server.html#call-3
 -define(TIMEOUT, 5000).
 
--export([start_link/0, start_link/2, start_link/3, stop/1]).
+-export([start_link/0, start_link/1, start_link/2, start_link/3, stop/1]).
 -export([q/2, q/3, qp/2, qp/3, q_noreply/2, q_async/2, q_async/3]).
 
 %% Exported for eredis_sub_client and testing
@@ -21,6 +21,8 @@
 
 %% Type of gen_server process id
 -type client() :: pid().
+
+-type host() :: list() | {local, list()}.
 
 %%
 %% PUBLIC API
@@ -30,11 +32,24 @@
 start_link() ->
     start_link("127.0.0.1", 6379).
 
--spec start_link(Host::list(), Port::integer()) -> {ok, Pid::pid()} | {error, Reason::term()}.
+%% Poolboy needs start_link/1
+-spec start_link([option() | {host, host()} | {port, inet:port_number()}]) ->
+          {ok, pid()} | {error, Reason::term()}.
+start_link(Options) ->
+    Host = proplists:get_value(host, Options, "127.0.0.1"),
+    Port = proplists:get_value(port, Options, 6379),
+    RestOptions = [Option || Option = {K, _V} <- Options,
+                             K =/= host,
+                             K =/= port],
+    start_link(Host, Port, RestOptions).
+
+-spec start_link(Host::host(), Port::inet:port_number()) ->
+          {ok, Pid::pid()} | {error, Reason::term()}.
 start_link(Host, Port) ->
     start_link(Host, Port, []).
 
--spec start_link(Host::list(), Port::integer(), Options::options()) -> {ok, Pid::pid()} | {error, Reason::term()}.
+-spec start_link(Host::host(), Port::inet:port_number(), Options::options()) ->
+          {ok, Pid::pid()} | {error, Reason::term()}.
 start_link(Host, Port, Options)
   when is_list(Host) orelse
        (is_tuple(Host) andalso tuple_size(Host) =:= 2 andalso element(1, Host) =:= local),
