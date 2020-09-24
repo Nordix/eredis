@@ -24,6 +24,7 @@
         , t_q_async/1
         , t_undefined_database/1
         , t_select_logical_database/1
+        , t_faulty_logical_database/1
         , t_authentication_error/1
         , t_connection_failure_during_start_no_reconnect/1
         , t_connection_failure_during_start_reconnect/1
@@ -235,7 +236,8 @@ t_q_async(Config) when is_list(Config) ->
     ?assertMatch(ok, eredis:stop(C)).
 
 t_undefined_database(Config) when is_list(Config) ->
-    {ok, C} = eredis:start_link("127.0.0.1", ?PORT, [{database, undefined}]),
+    {ok, C} = eredis:start_link("127.0.0.1", ?PORT, [{database, undefined},
+                                                     {reconnect_sleep, no_reconnect}]),
     ?assertMatch(ok, eredis:stop(C)).
 
 t_select_logical_database(Config) when is_list(Config) ->
@@ -243,12 +245,21 @@ t_select_logical_database(Config) when is_list(Config) ->
                                                       {reconnect_sleep, no_reconnect}]),
     ?assertMatch(ok, eredis:stop(C)).
 
+t_faulty_logical_database(Config) when is_list(Config) ->
+    process_flag(trap_exit, true),
+    Res = eredis:start_link("127.0.0.1", ?PORT, [{database, 99999999},
+                                                 {reconnect_sleep, no_reconnect}]),
+    ?assertMatch({error, {select_error, {unexpected_response, _}}}, Res),
+    IsDead = receive {'EXIT', _, _} -> died
+             after 1000 -> still_alive end,
+    process_flag(trap_exit, false),
+    ?assertEqual(died, IsDead).
+
 t_authentication_error(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", ?PORT, [{database, 4},
-                                                 {password, "password"},
+    Res = eredis:start_link("127.0.0.1", ?PORT, [{password, "password"},
                                                  {reconnect_sleep, no_reconnect}]),
-    ?assertMatch({error, {authentication_error, _}}, Res),
+    ?assertMatch({error, {authentication_error, {unexpected_response, _}}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
     process_flag(trap_exit, false),
@@ -268,12 +279,11 @@ t_connection_failure_during_start_reconnect(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     Res = eredis:start_link("127.0.0.1", ?WRONG_PORT, [{reconnect_sleep, 100}]),
     ?assertMatch({ok, _}, Res),
-    {ok, ClientPid} = Res,
-    IsDead = receive {'EXIT', ClientPid, _} -> died
+    {ok, C} = Res,
+    IsDead = receive {'EXIT', C, _} -> died
              after 400 -> still_alive end,
     process_flag(trap_exit, false),
     ?assertEqual(still_alive, IsDead),
-    {_, C} = Res,
     ?assertMatch(ok, eredis:stop(C)).
 
 t_unknown_client_call(Config) when is_list(Config) ->

@@ -143,15 +143,18 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 
-%% Receive TCP data from socket. Match `Socket' to enforce sanity.
-handle_info({tcp, Socket, Data}, #state{socket = Socket} = State) ->
-    ok = inet:setopts(Socket, [{active, once}]),
-    {noreply, handle_response(Data, State)};
-
-%% Receive TLS data from socket. Match `Socket' to enforce sanity.
-handle_info({ssl, Socket, Data}, #state{socket = Socket} = State) ->
-    ok = ssl:setopts(Socket, [{active, once}]),
-    {noreply, handle_response(Data, State)};
+%% Receive TCP/TLS data from socket. Match `Socket' to enforce sanity.
+handle_info({Type, Socket, Data},
+            #state{socket = Socket, transport = Transport} = State1)
+  when Type =:= tcp orelse Type =:= ssl ->
+    State = handle_response(Data, State1),
+    case setopts(Socket, Transport, [{active, once}]) of
+        ok ->
+            {noreply, State};
+        {error, Reason} ->
+            Transport:close(Socket),
+            maybe_reconnect(Reason, State)
+    end;
 
 %% Socket errors. If the network or peer is down, the error is not
 %% always followed by a tcp_closed.
@@ -183,6 +186,7 @@ handle_info({Type, Socket, _}, #state{socket = OurSocket} = State)
     %% doesn't match our state.
     {noreply, State};
 
+%% Ignore close for an old socket.
 handle_info({Type, Socket}, #state{socket = OurSocket} = State)
   when OurSocket =/= Socket,
        Type =:= tcp_closed orelse Type =:= ssl_closed ->
@@ -344,9 +348,8 @@ safe_send(Pid, Value) ->
     end.
 
 %% @doc: Helper for connecting to Redis, authenticating and selecting
-%% the correct database. These commands are synchronous and if socket
-%% handling returns something we don't expect, we crash.
-%% Returns: {ok, State} or {SomeError, Reason}.
+%% the correct database synchronously.
+%% Returns: {ok, State} or {error, Reason}.
 connect(State) ->
     {ok, {AFamily, Addrs}} = get_addrs(State#state.host),
     Port = case AFamily of
@@ -358,9 +361,9 @@ connect(State) ->
                                     lists:keysort(1, ?SOCKET_OPTS)),
     ConnectOptions = [AFamily | [?SOCKET_MODE | SocketOptions]],
 
-    connect_next_addr(Addrs, Port, SocketOptions, ConnectOptions, State).
+    connect_next_addr(Addrs, Port, ConnectOptions, State).
 
-connect_next_addr([Addr|Addrs], Port, SocketOptions, ConnectOptions, State) ->
+connect_next_addr([Addr|Addrs], Port, ConnectOptions, State) ->
     case gen_tcp:connect(Addr, Port, ConnectOptions, State#state.connect_timeout) of
         {ok, Socket} ->
             case maybe_upgrade_to_tls(Socket, State) of
@@ -386,24 +389,33 @@ connect_next_addr([Addr|Addrs], Port, SocketOptions, ConnectOptions, State) ->
             {error, {connection_error, Reason}};
         {error, _Reason} ->
             %% Try next address
-            connect_next_addr(Addrs, Port, SocketOptions, ConnectOptions, State)
+            connect_next_addr(Addrs, Port, ConnectOptions, State)
     end.
 
 maybe_upgrade_to_tls(Socket, #state{transport = ssl} = State) ->
-    %% initial active opt should be 'false' before a possible upgrade to ssl
-    inet:setopts(Socket, [{active, false}]),
+    %% setopt needs to be 'false' before an upgrade to ssl is possible
+    case inet:setopts(Socket, [{active, false}]) of
+        ok ->
+            upgrade_to_tls(Socket, State);
+        {error, Reason} ->
+            {error, Reason}
+    end;
+maybe_upgrade_to_tls(Socket, _State) ->
+    {ok, Socket}.
+
+upgrade_to_tls(Socket, State) ->
     case ssl:connect(Socket, State#state.tls_options, State#state.connect_timeout) of
         {ok, NewSocket} ->
             %% Enter `{active, once}' mode. NOTE: tls/ssl doesn't support `{active, N}'
             case ssl:setopts(NewSocket, [{active, once}]) of
-                ok -> {ok, NewSocket};
-                Reason -> Reason
+                ok ->
+                    {ok, NewSocket};
+                {error, Reason} ->
+                    {error, Reason}
             end;
-        Reason -> Reason
-    end;
-
-maybe_upgrade_to_tls(Socket, _State) ->
-    {ok, Socket}.
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 get_addrs({local, Path}) ->
     {ok, {local, [{local, Path}]}};
@@ -447,15 +459,23 @@ authenticate(Socket, TransportType, Password) ->
 %% @doc: Executes the given command synchronously, expects Redis to
 %% return "+OK\r\n", otherwise it will fail.
 do_sync_command(Socket, Transport, Command) ->
-    ok = setopts(Socket, Transport, [{active, false}]),
+    case setopts(Socket, Transport, [{active, false}]) of
+        ok ->
+            do_sync_command2(Socket, Transport, Command);
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+do_sync_command2(Socket, Transport, Command) ->
     case Transport:send(Socket, Command) of
         ok ->
-            %% Hope there's nothing else coming down on the socket..
             case Transport:recv(Socket, 0, ?RECV_TIMEOUT) of
                 {ok, <<"+OK\r\n">>} ->
-                    ok = setopts(Socket, Transport, [{active, once}]);
-                Other ->
-                    {error, {unexpected_data, Other}}
+                    setopts(Socket, Transport, [{active, once}]);
+                {ok, Data} ->
+                    {error, {unexpected_response, Data}};
+                {error, Reason} ->
+                    {error, Reason}
             end;
         {error, Reason} ->
             {error, Reason}
@@ -497,18 +517,13 @@ reconnect_loop(Client, #state{reconnect_sleep=ReconnectSleep, transport=Transpor
         {'EXIT', Client, Reason} -> exit(Reason)
     after
         ReconnectSleep ->
-            case catch(connect(State)) of
+            case connect(State) of
                 {ok, #state{socket = Socket}} ->
                     Client ! {connection_ready, Socket},
                     Transport:controlling_process(Socket, Client),
                     Msgs = get_all_messages([]),
                     [Client ! M || M <- Msgs];
                 {error, _Reason} ->
-                    reconnect_loop(Client, State);
-                %% Something bad happened when connecting, like Redis might be
-                %% loading the dataset and we got something other than 'OK' in
-                %% auth or select
-                _ ->
                     reconnect_loop(Client, State)
             end
     end.
