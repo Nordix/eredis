@@ -221,8 +221,8 @@ handle_info(initiate_connection, #state{socket = undefined} = State) ->
             maybe_reconnect(Reason, State)
     end;
 
-handle_info(Info, State) ->
-    {stop, {unhandled_message, Info}, State}.
+handle_info(_Info, State) ->
+    {noreply, State}.
 
 terminate(_Reason, State) ->
     close_socket(State, State#state.socket).

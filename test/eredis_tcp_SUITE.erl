@@ -9,6 +9,7 @@
 
 %% Test cases
 -export([ t_connect/1
+        , t_connect_ipv6/1
         , t_connect_hostname/1
         , t_connect_local/1
         , t_stop/1
@@ -34,13 +35,19 @@
         , t_connect_no_reconnect/1
         , t_tcp_closed_no_reconnect/1
         , t_reconnect/1
+        , t_error_socket_closed_before_auth/1
+        , t_error_socket_closed_while_waiting_for_auth_response/1
+        , t_error_socket_closed_before_select_db/1
+        , t_error_socket_closed_while_waiting_for_select_db_response/1
+        , t_send_error/1
+        , t_ignore_old_socket/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
 -include("eredis.hrl").
 
--import(eredis_test_utils, [get_tcp_ports/0]).
+-import(eredis_test_utils, [get_tcp_ports/0, get_tcp_ports/1]).
 
 -define(PORT, 6379).
 -define(WRONG_PORT, 6378).
@@ -64,12 +71,18 @@ suite() -> [{timetrap, {minutes, 1}}].
 t_connect(Config) when is_list(Config) ->
     ?assertMatch({ok, _}, eredis:start_link()),
     ?assertMatch({ok, _}, eredis:start_link("127.0.0.1", ?PORT)),
+    ?assertMatch({ok, _}, eredis:start_link("127.0.0.1", ?PORT, [{reconnect_sleep, no_reconnect}])),
     ?assertMatch({ok, _}, eredis:start_link("127.0.0.1", ?PORT, [{database, 0},
                                                                  {password, ""},
                                                                  {reconnect_sleep, 100},
                                                                  {connect_timeout, 5000},
                                                                  {socket_options, [{keepalive, true}]}
-                                                                ])).
+                                                                ])),
+    ?assertMatch({ok, _}, eredis:start_link([])),
+    ?assertMatch({ok, _}, eredis:start_link([{host, "127.0.0.1"}, {port, ?PORT}])).
+
+t_connect_ipv6(Config) when is_list(Config) ->
+    ?assertMatch({ok, _}, eredis:start_link("::1", ?PORT, [{reconnect_sleep, no_reconnect}])).
 
 t_connect_hostname(Config) when is_list(Config) ->
     Res = eredis:start_link(net_adm:localhost(), ?PORT, [{reconnect_sleep, no_reconnect}]),
@@ -249,7 +262,7 @@ t_faulty_logical_database(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     Res = eredis:start_link("127.0.0.1", ?PORT, [{database, 99999999},
                                                  {reconnect_sleep, no_reconnect}]),
-    ?assertMatch({error, {select_error, {unexpected_response, _}}}, Res),
+    ?assertMatch({error, {select_error, {unexpected_response, <<"-ERR DB", _/binary>>}}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
     process_flag(trap_exit, false),
@@ -259,7 +272,7 @@ t_authentication_error(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     Res = eredis:start_link("127.0.0.1", ?PORT, [{password, "password"},
                                                  {reconnect_sleep, no_reconnect}]),
-    ?assertMatch({error, {authentication_error, {unexpected_response, _}}}, Res),
+    ?assertMatch({error, {authentication_error, {unexpected_response, <<"-ERR AUTH", _/binary>>}}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
     process_flag(trap_exit, false),
@@ -314,9 +327,9 @@ t_tcp_closed_no_reconnect(Config) when is_list(Config) ->
     C = c_no_reconnect(),
     tcp_closed_rig(C).
 
-%% Make sure a reconnect cleanup old sockets
-%% i.e we only have maximum 1 tcp port open
 t_reconnect(Config) when is_list(Config) ->
+    %% Make sure a reconnect cleanup old sockets
+    %% i.e we only have maximum 1 tcp port open
     ?assertEqual(0, length(get_tcp_ports())),
     {ok, C} = eredis:start_link("127.0.0.1", ?PORT, [{password, "wrong_password"},
                                                      {reconnect_sleep, 100},
@@ -326,6 +339,129 @@ t_reconnect(Config) when is_list(Config) ->
     ?assertMatch(ok, eredis:stop(C)),
     timer:sleep(200), %% Wait for reconnect process to terminate
     ?assertEqual(0, length(get_tcp_ports())).
+
+t_error_socket_closed_before_auth(Config) when is_list(Config) ->
+    %% Simulate that Redis closes the connection directly, before eredis sends
+    %% the AUTH command.
+    {ok, Pid, Port} = eredis_test_utils:start_server(
+                        fun(ClientSocket) ->
+                                ok = gen_tcp:close(ClientSocket)
+                        end),
+    process_flag(trap_exit, true),
+    Res = eredis:start_link("127.0.0.1", Port, [{password, "password"},
+                                                {reconnect_sleep, no_reconnect}]),
+    ?assertMatch({error, {authentication_error, _}}, Res), %% einval or closed depending of timing
+    IsDead = receive {'EXIT', _, _} -> died
+             after 2000 -> still_alive end,
+    process_flag(trap_exit, false),
+    ?assertEqual(died, IsDead),
+    eredis_test_utils:stop_server(Pid).
+
+t_error_socket_closed_while_waiting_for_auth_response(Config) when is_list(Config) ->
+    %% Simulate that Redis closes the connection after the AUTH
+    %% command was sent.
+    {ok, Pid, Port} = eredis_test_utils:start_server(
+                        fun(ClientSocket) ->
+                                {ok, <<"AUTH \"password\"\r\n">>} = gen_tcp:recv(ClientSocket, 0, 2000),
+                                ok = gen_tcp:close(ClientSocket)
+                        end),
+    process_flag(trap_exit, true),
+    Res = eredis:start_link("127.0.0.1", Port, [{password, "password"},
+                                                {reconnect_sleep, no_reconnect}]),
+    ?assertMatch({error, {authentication_error, closed}}, Res),
+    IsDead = receive {'EXIT', _, _} -> died
+             after 2000 -> still_alive end,
+    process_flag(trap_exit, false),
+    ?assertEqual(died, IsDead),
+    eredis_test_utils:stop_server(Pid).
+
+t_error_socket_closed_before_select_db(Config) when is_list(Config) ->
+    %% Simulate that Redis closes the connection directly, before eredis sends
+    %% the SELECT command.
+    {ok, Pid, Port} = eredis_test_utils:start_server(
+                        fun(ClientSocket) ->
+                                ok = gen_tcp:close(ClientSocket)
+                        end),
+    process_flag(trap_exit, true),
+    Res = eredis:start_link("127.0.0.1", Port, [{database, 2},
+                                                {reconnect_sleep, no_reconnect}]),
+    ?assertMatch({error, {select_error, _}}, Res), %% einval or closed depending of timing
+    IsDead = receive {'EXIT', _, _} -> died
+             after 2000 -> still_alive end,
+    process_flag(trap_exit, false),
+    ?assertEqual(died, IsDead),
+    eredis_test_utils:stop_server(Pid).
+
+t_error_socket_closed_while_waiting_for_select_db_response(Config) when is_list(Config) ->
+    %% Simulate that Redis closes the connection after the SELECT
+    %% command was sent.
+    {ok, Pid, Port} = eredis_test_utils:start_server(
+                        fun(ClientSocket) ->
+                                {ok, <<"SELECT 2\r\n">>} = gen_tcp:recv(ClientSocket, 0, 2000),
+                                ok = gen_tcp:close(ClientSocket)
+                        end),
+    process_flag(trap_exit, true),
+    Res = eredis:start_link("127.0.0.1", Port, [{database, 2},
+                                                {reconnect_sleep, no_reconnect}]),
+    ?assertMatch({error, {select_error, closed}}, Res),
+    IsDead = receive {'EXIT', _, _} -> died
+             after 2000 -> still_alive end,
+    process_flag(trap_exit, false),
+    ?assertEqual(died, IsDead),
+    eredis_test_utils:stop_server(Pid).
+
+t_send_error(Config) when is_list(Config) ->
+    %% Verify handling of send errors by using the send_timout_close option.
+    %% Connect an eredis client to a server and fill the clients sockets sendbuffer
+    %% until the socket is full. Then let eredis handle a query which will
+    %% trigger a send error (and reconnection attempts)
+    %%
+    %% The socket option send_timeout_close is used here (together with send_timeout),
+    %% otherwise the socket close takes ~5s, and the tcp port is kept by Erlang.
+    {ok, Pid, Port} = eredis_test_utils:start_server(
+                        fun(ClientSocket) ->
+                                inet:setopts(ClientSocket, [{recbuf, 4096}])
+                        end),
+    {ok, C} = eredis:start_link("127.0.0.1", Port, [{reconnect_sleep, 100},
+                                                    {socket_options, [{send_timeout, 250},
+                                                                      {send_timeout_close, true},
+                                                                      {sndbuf, 4096}]}]),
+    eredis_test_utils:await_connect(Pid),
+    [Socket] = get_tcp_ports(C),                %% Steel the eredis client socket..
+    {error, timeout} = send_data_loop(Socket),  %% ..and fill the socket buffer
+    ?assertEqual({error, enotconn}, eredis:q(C, ["GET", foo])),
+    timer:sleep(200),
+    [Socket2] = get_tcp_ports(C),               %% Get new eredis client socket
+    ?assertNotEqual(Socket, Socket2),           %% Reconnection attempts with new socket
+    eredis_test_utils:stop_server(Pid).
+
+send_data_loop(Socket) ->
+    Data = << <<0>> || _ <- lists:seq(1, 1024) >>,
+    case gen_tcp:send(Socket, Data) of
+        ok -> send_data_loop(Socket);
+        Error -> Error
+    end.
+
+t_ignore_old_socket(Config) when is_list(Config) ->
+    %% Verify that the client ignores messages and errors for a
+    %% previously used socket and keeps the current connection open.
+    %% The events are simulated by sending similar messages the
+    %% client process would receive as a socket owner process
+    %% when these events occure.
+    {ok, C} = eredis:start_link("127.0.0.1", ?PORT, []),
+    [Socket] = get_tcp_ports(C),
+    C ! {tcp, old_socket, data}, %% Incoming data event
+    timer:sleep(200),
+    [Socket] = get_tcp_ports(C),
+    C ! {tcp_error, old_socket, reason}, %% Socket error event
+    timer:sleep(200),
+    [Socket] = get_tcp_ports(C),
+    C ! {tcp_closed, old_socket}, %% Socket closed event
+    timer:sleep(200),
+    [Socket] = get_tcp_ports(C),
+    C ! {send_error, old_socket, reason}, %% Internal send error event
+    timer:sleep(200),
+    [Socket] = get_tcp_ports(C).
 
 %%
 %% Helpers

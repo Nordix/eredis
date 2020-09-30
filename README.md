@@ -13,6 +13,7 @@ Improvements and changes compared to `wooga/eredis`:
 * Improved test coverage
 * Containerized testing
 * Default reconnection sleep changed from 100ms to 1s
+* Unknown Erlang messages wont stop the client.
 
 Supported Redis features:
 
