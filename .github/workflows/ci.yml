@@ -1,0 +1,79 @@
+name: CI
+on:
+  push:
+  pull_request:
+    branches:
+      # Branches from forks have the form 'user:branch-name' so we only run
+      # this job on pull_request events for branches that look like fork
+      # branches. Without this we would end up running this job twice for non
+      # forked PRs, once for the push and then once for opening the PR.
+    - '**:**'
+
+jobs:
+  ci:
+    strategy:
+      matrix:
+        include:
+          - otp-version: 23.1
+            platform: ubuntu-20.04
+            lsb_release: focal
+          - otp-version: 22.3.4.9
+            platform: ubuntu-20.04
+            lsb_release: focal
+          - otp-version: 21.3.8.17
+            platform: ubuntu-20.04
+            lsb_release: focal
+          - otp-version: 20.3.8.26
+            platform: ubuntu-20.04
+            lsb_release: focal
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Cache Hex packages
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/rebar3/hex/hexpm/packages
+          key: ${{ runner.os }}-hex-${{ hashFiles('**/rebar.lock') }}
+          restore-keys: ${{ runner.os }}-hex-
+
+      - name: Cache Dialyzer PLTs
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/rebar3/rebar3_*_plt
+          key: ${{ runner.os }}-${{ matrix.otp-version }}-dialyzer-${{ hashFiles('**/rebar.config') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.otp-version }}-dialyzer-
+
+      - name: Install Erlang/OTP
+        run: |
+          DEB_NAME="esl-erlang_${{ matrix.otp-version }}-1~ubuntu~${{ matrix.lsb_release }}_amd64.deb"
+          curl -f https://packages.erlang-solutions.com/erlang/debian/pool/$DEB_NAME -o $DEB_NAME
+          sudo dpkg --install $DEB_NAME
+
+      - name: Install elvis
+        run: |
+          git clone --depth 1 --branch 0.5.0 https://github.com/inaka/elvis.git
+          cd elvis && rebar3 escriptize && sudo cp _build/default/bin/elvis /usr/local/bin/
+
+      - name: Install faketime
+        run: |
+          sudo apt update
+          sudo apt install -yy --no-install-recommends faketime
+
+      - name: Build and test
+        run: |
+          make compile
+          make ut ct-tcp
+          make cover
+
+      - name: Run checks
+        run: |
+          make elvis
+          make xref
+          make dialyzer
+
+      - name: Generate docs
+        run: |
+          make edoc
+          git diff --exit-code ./doc || echo "** Please commit your changes from 'make edoc' **"

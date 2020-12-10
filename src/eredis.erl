@@ -105,7 +105,7 @@ q_async(Client, Command) ->
 
 -spec q_async(Client::client(), Command::[any()], Pid::pid()|atom()) -> ok.
 %% @doc Executes the command, and sends a message to `Pid' with the response (with either or success).
-%% @see 1_async/2
+%% @see q_async/2
 q_async(Client, Command, Pid) when is_pid(Pid) ->
     Request = {request, create_multibulk(Command), Pid},
     gen_server:cast(Client, Request).

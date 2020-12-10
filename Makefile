@@ -1,4 +1,4 @@
-.PHONY: all compile clean test doc xref dialyzer elvis cover
+.PHONY: all compile clean test ut ct-tcp ct-tls edoc xref dialyzer elvis cover coverview
 
 REDIS_VERSION ?= 6.0.4
 
@@ -48,9 +48,6 @@ elvis:
 
 cover:
 	@rebar3 cover -v
-
-coveralls:
-	@rebar3 coveralls send
 
 coverview: cover
 	xdg-open _build/test/cover/index.html
