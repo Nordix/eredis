@@ -19,6 +19,7 @@
 %%    the bulk. The caller may use this to explicitly call
 %%    gen_tcp:recv/2 with the desired size.
 
+%% @private
 -module(eredis_parser).
 -include("eredis.hrl").
 -include_lib("eunit/include/eunit.hrl").

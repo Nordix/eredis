@@ -130,6 +130,7 @@ cast(Client, Command) ->
 
 -spec create_multibulk(Args::[any()]) -> Command::iolist().
 %% @doc: Creates a multibulk command with all the correct size headers
+%% @private
 create_multibulk(Args) ->
     ArgCount = [<<$*>>, integer_to_list(length(Args)), <<?NL>>],
     ArgsBin = lists:map(fun to_bulk/1, lists:map(fun to_binary/1, Args)),

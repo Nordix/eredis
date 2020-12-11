@@ -7,6 +7,7 @@
 %% queued and delivered when the client acknowledges receipt.
 %%
 %% There is one consuming process per eredis_sub_client.
+%% @private
 -module(eredis_sub_client).
 -behaviour(gen_server).
 -include("eredis.hrl").

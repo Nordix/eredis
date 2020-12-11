@@ -1,3 +1,4 @@
+%% @private
 -module(basho_bench_driver_eredis).
 
 -export([new/1,

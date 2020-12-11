@@ -4,6 +4,9 @@ ebin/*
 Emakefile
 .rebar
 .DS_Store
-doc
 _build
 erl_crash.dump
+/doc/README.md
+/doc/erlang.png
+/doc/edoc-info
+/doc/stylesheet.css
