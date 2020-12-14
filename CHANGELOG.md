@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## v1.3.0-nordix
+
+December 2020 in the Nordix fork by Björn Svensson and Viktor Söderqvist.
+
+* TLS support
+* Correction regarding chunked error responses
+* All socket errors, including send and setopts errors, trigger reconnect
+* Explicitly close socket before reconnect, preventing dangling ports
+* Terminate reconnect loop when client terminates (fixes wooga/eredis#124)
+* Try all addresses from `inet:getaddrs/2` instead of just one when connecting
+* Stray messages don't crash the connection process
+* Improved tests and coverage
+* CI builds using Github Actions
+* Elvis code style and Dialyzer corrections
+
+## v1.2.0
+
+2018 in the original `wooga/eredis` repo.
+
+* Unix domain socket support (PR wooga/eredis#108 by Igor Slepchin)
+* Reset parser state on disconnect (PR wooga/eredis#106 by Ivan Baidakou)
+* Non-blocking init AKA async connect (PR wooga/eredis#105 by Valery Meleshkin)
+* Some improved tests
+
 ## v1.1.0
 
 * Merged a ton of of old and neglected pull requests. Thanks to

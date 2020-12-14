@@ -2,10 +2,17 @@
 
 -type reconnect_sleep() :: no_reconnect | integer().
 
--type option() :: {database, string()} | {password, string()} | {reconnect_sleep, reconnect_sleep()} |
-                  {connect_timeout, integer()} | {socket_options, list()}.
+-type option() :: {host, string() | {local, string()}} |
+                  {port, inet:port_number()} |
+                  {database, integer() | string()} |
+                  {password, string()} |
+                  {reconnect_sleep, reconnect_sleep()} |
+                  {connect_timeout, integer()} |
+                  {socket_options, list()} |
+                  {tls, [ssl:tls_client_option()]}.
 
 -type options() :: [option()].
+-type server_args() :: options().               % for backwards compatibility
 
 -type return_value() :: undefined | binary() | [binary() | nonempty_list()].
 

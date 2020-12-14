@@ -26,10 +26,10 @@
 -include("eredis.hrl").
 
 -define(CONNECT_TIMEOUT, 5000).
--define(RECONNECT_SLEEP, 1000).
+-define(RECONNECT_SLEEP, 100).
 
 %% API
--export([start_link/3, stop/1]).
+-export([start_link/1, stop/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -48,7 +48,7 @@
                 socket_options  :: list(),
                 tls_options     :: list(),
 
-                transport       :: gen_tcp | ssl | undefined,
+                transport       :: gen_tcp | ssl,
                 socket          :: gen_tcp:socket() | ssl:sslsocket() | undefined,
                 parser_state    :: #pstate{} | undefined,
                 queue           :: eredis_queue() | undefined
@@ -58,12 +58,10 @@
 %% API
 %%
 
--spec start_link(Host::list(),
-                 Port::integer(),
-                 Options::options()) ->
+-spec start_link(Options::options()) ->
           {ok, Pid::pid()} | {error, Reason::term()}.
-start_link(Host, Port, Options) ->
-    gen_server:start_link(?MODULE, [Host, Port, Options], []).
+start_link(Options) ->
+    gen_server:start_link(?MODULE, Options, []).
 
 
 stop(Pid) ->
@@ -73,7 +71,9 @@ stop(Pid) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Host, Port, Options]) ->
+init(Options) ->
+    Host           = proplists:get_value(host, Options, "localhost"),
+    Port           = proplists:get_value(port, Options, 6379),
     Database       = proplists:get_value(database, Options, 0),
     Password       = proplists:get_value(password, Options, ""),
     ReconnectSleep = proplists:get_value(reconnect_sleep, Options, ?RECONNECT_SLEEP),

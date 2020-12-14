@@ -2,26 +2,18 @@
 
 Non-blocking Redis client with focus on performance and robustness.
 
-Improvements and changes compared to `wooga/eredis`:
-
-* Support of TLS introduced in Redis 6
-* Add `start_link/1` to allow it to be used with Poolboy
-* Correction regarding chunked error responses
-* Correction regarding termination of the reconnect process
-* Dialyzer corrections
-* Elvis code formatting
-* Improved test coverage
-* Containerized testing
-* Default reconnection sleep changed from 100ms to 1s
-* Unknown Erlang messages wont stop the client.
+Improvements and changes in this fork compared to `wooga/eredis`: TLS support
+and error handling corrections. See [CHANGELOG.md](CHANGELOG.md).
 
 Supported Redis features:
 
- * Any command, through eredis:q/2
+ * Any command, through `eredis:q/2,3`
  * Transactions
  * Pipelining
- * Authentication & multiple dbs
+ * Authentication & multiple DBs
  * Pubsub
+
+Generedated API documentation: [doc/eredis.md](doc/eredis.md)
 
 ## Setup
 
@@ -123,7 +115,7 @@ ok
 
 ## Commands
 
-### Query: q/2-3
+### Query: [qp/2,3](doc/eredis.md#q-2)
 
 Eredis has one main function to interact with redis, which is
 `eredis:q(Client::pid(), Command::iolist())`. The response will either
@@ -133,7 +125,7 @@ Redis, without any type conversion. If Redis returns a list of values,
 this list is returned in the exact same order without any type
 conversion.
 
-### Pipelined query: qp/2-3
+### Pipelined query: [qp/2,3](doc/eredis.md#qp-2)
 
 To send multiple requests to redis in a batch, aka. pipelining
 requests, you may use `eredis:qp(Client::pid(),
@@ -141,22 +133,45 @@ requests, you may use `eredis:qp(Client::pid(),
 where the values are the redis responses in the same order as the
 commands you provided.
 
-### Connect a client: start_link/0-3
+### Connect a client: [start_link/1](doc/eredis.md#start_link-1)
 
-To start the client, use any of the `eredis:start_link/0,1,2,3`
-functions. They all include sensible defaults. `start_link/3` takes
-the following arguments:
+To start the client, use `start_link/1` or one of its variants. `start_link/1`
+takes the following options (proplist):
 
-* Host, dns name or ip adress as string; or unix domain socket as {local, Path} (available in OTP 19+)
-* Port, integer, default is 6379
-* Options, a proplist that can contain following, default: []
-  * `database`: integer or 0 for default database, default: 0
-  * `password`: string or empty string for no password, default: "" i.e. no password
-  * `reconnect_sleep`: integer of milliseconds to sleep between reconnect attempts, default: 1000
-  * `connect_timeout`: timeout value in milliseconds to use in the connect, default: 5000
-  * `socket_options`: proplist of options used when connecting the socket, default is `?SOCKET_OPTS`
-  * `tls`: enabling TLS and a proplist of [options](https://erlang.org/doc/man/ssl.html)
-    used when establishing the TLS connection, default is off
+* `host`: DNS name or IP adress as string; or unix domain socket as `{local,
+  Path}` (available in OTP 19+)
+* `port`: integer, default is 6379
+* `database`: integer or 0 for default database, default: 0
+* `password`: string or empty string for no password, default: "" i.e. no password
+* `reconnect_sleep`: integer of milliseconds to sleep between reconnect attempts, default: 100
+* `connect_timeout`: timeout value in milliseconds to use in the connect, default: 5000
+* `socket_options`: proplist of [gen_tcp](https://erlang.org/doc/man/gen_tcp.html)
+  options used when connecting the socket, default is `?SOCKET_OPTS`
+* `tls`: enable TLS by providing a list of
+  [options](https://erlang.org/doc/man/ssl.html) used when establishing the TLS
+  connection, default is off
+
+## Implicit pipelining
+
+Commands are pipelined automatically so multiple processes can share the same
+Eredis connection instance. Although `q/2,3` and `qp/2,3` are blocking until the
+response is returned, Eredis is not blocked.
+
+```
+  Process A          Process B          Eredis        TCP/TLS socket
+     |                  |                  |          (Redis server)
+     | q(Pid, Command1) |                  |                 |
+     |------------------------------------>|---------------->|
+     |                  | q(Pid, Command2) |                 |
+     |                  |----------------->|---------------->|
+     |                  |                  |                 |
+    ...                ...                ...               ...
+     |                  |                  |                 |
+     |                  |                  |      Response 1 |
+     |<------------------------------------|<----------------|
+     |                  |                  |      Response 2 |
+     |                  |<-----------------|<----------------|
+```
 
 ## Reconnecting on Redis down / network failure / timeout / etc
 
@@ -164,7 +179,7 @@ When Eredis for some reason looses the connection to Redis, Eredis
 will keep trying to reconnect until a connection is successfully
 established, which includes the `AUTH` and `SELECT` calls. The sleep
 time between attempts to reconnect can be set in the
-`eredis:start_link/5` call.
+`eredis:start_link/1` call.
 
 As long as the connection is down, Eredis will respond to any request
 immediately with `{error, no_connection}` without actually trying to
@@ -178,7 +193,7 @@ immediately with `{connection_error, Reason}`.
 ## Pubsub
 
 Thanks to Dave Peticolas (jdavisp3), eredis supports
-pubsub. `eredis_sub` offers a separate client that will forward
+pubsub. `[eredis_sub](doc/eredis_sub.md)` offers a separate client that will forward
 channel messages from Redis to an Erlang process in a "active-once"
 pattern similar to gen_tcp sockets. After every message sent, the
 controlling process must acknowledge receipt using

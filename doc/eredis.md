@@ -16,7 +16,7 @@
 
 
 <pre><code>
-client() = pid()
+client() = pid() | atom() | {atom(), atom()} | {global, term()} | {via, atom(), term()}
 </code></pre>
 
 
@@ -26,7 +26,7 @@ client() = pid()
 
 
 <pre><code>
-host() = list() | {local, list()}
+host() = string() | {local, string()}
 </code></pre>
 
 
@@ -36,7 +36,7 @@ host() = list() | {local, list()}
 
 
 <pre><code>
-option() = {database, string()} | {password, string()} | {reconnect_sleep, <a href="#type-reconnect_sleep">reconnect_sleep()</a>} | {connect_timeout, integer()} | {socket_options, list()}
+option() = {host, string() | {local, string()}} | {port, <a href="inet.md#type-port_number">inet:port_number()</a>} | {database, integer() | string()} | {password, string()} | {reconnect_sleep, <a href="#type-reconnect_sleep">reconnect_sleep()</a>} | {connect_timeout, integer()} | {socket_options, list()} | {tls, [<a href="ssl.md#type-tls_client_option">ssl:tls_client_option()</a>]}
 </code></pre>
 
 
@@ -84,8 +84,11 @@ return_value() = undefined | binary() | [binary() | nonempty_list()]
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#q-2">q/2</a></td><td> Executes the given command in the specified connection.</td></tr><tr><td valign="top"><a href="#q-3">q/3</a></td><td></td></tr><tr><td valign="top"><a href="#q_async-2">q_async/2</a></td><td>Executes the command, and sends a message to this process with the response (with either error or success).</td></tr><tr><td valign="top"><a href="#q_async-3">q_async/3</a></td><td>Executes the command, and sends a message to <code>Pid</code> with the response (with either or success).</td></tr><tr><td valign="top"><a href="#q_noreply-2">q_noreply/2</a></td><td>Executes the command but does not wait for a response and ignores any errors.</td></tr><tr><td valign="top"><a href="#qp-2">qp/2</a></td><td> Executes the given pipeline (list of commands) in the
-specified connection.</td></tr><tr><td valign="top"><a href="#qp-3">qp/3</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td></td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td></td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#q-2">q/2</a></td><td> Executes the given command in the specified connection.</td></tr><tr><td valign="top"><a href="#q-3">q/3</a></td><td>Like q/2 with a custom timeout.</td></tr><tr><td valign="top"><a href="#q_async-2">q_async/2</a></td><td>Executes the command, and sends a message to the calling process with the
+response (with either error or success).</td></tr><tr><td valign="top"><a href="#q_async-3">q_async/3</a></td><td>Executes the command, and sends a message to <code>Pid</code> with the response
+(with either or success).</td></tr><tr><td valign="top"><a href="#q_noreply-2">q_noreply/2</a></td><td>Executes the command but does not wait for a response and ignores any
+errors.</td></tr><tr><td valign="top"><a href="#qp-2">qp/2</a></td><td> Executes the given pipeline (list of commands) in the
+specified connection.</td></tr><tr><td valign="top"><a href="#qp-3">qp/3</a></td><td>Like qp/2 with a custom timeout.</td></tr><tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Connect with default options.</td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Connect with the given options.</td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>Connect to the given host and port.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>(<em>Deprecated</em>.) </td></tr><tr><td valign="top"><a href="#start_link-4">start_link/4</a></td><td>(<em>Deprecated</em>.) </td></tr><tr><td valign="top"><a href="#start_link-5">start_link/5</a></td><td>(<em>Deprecated</em>.) </td></tr><tr><td valign="top"><a href="#start_link-6">start_link/6</a></td><td>(<em>Deprecated</em>.) </td></tr><tr><td valign="top"><a href="#start_link-7">start_link/7</a></td><td>(<em>Deprecated</em>.) </td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Closes the connection and stops the client.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -115,6 +118,8 @@ q(Client::<a href="#type-client">client()</a>, Command::[any()], Timeout::intege
 </code></pre>
 <br />
 
+Like q/2 with a custom timeout.
+
 <a name="q_async-2"></a>
 
 ### q_async/2 ###
@@ -124,7 +129,9 @@ q_async(Client::<a href="#type-client">client()</a>, Command::[any()]) -&gt; ok
 </code></pre>
 <br />
 
-Executes the command, and sends a message to this process with the response (with either error or success). Message is of the form `{response, Reply}`, where `Reply` is the reply expected from `q/2`.
+Executes the command, and sends a message to the calling process with the
+response (with either error or success). Message is of the form `{response,
+Reply}`, where `Reply` is the reply expected from `q/2`.
 
 <a name="q_async-3"></a>
 
@@ -135,7 +142,8 @@ q_async(Client::<a href="#type-client">client()</a>, Command::[any()], Pid::pid(
 </code></pre>
 <br />
 
-Executes the command, and sends a message to `Pid` with the response (with either or success).
+Executes the command, and sends a message to `Pid` with the response
+(with either or success).
 
 __See also:__ [q_async/2](#q_async-2).
 
@@ -148,7 +156,8 @@ q_noreply(Client::<a href="#type-client">client()</a>, Command::[any()]) -&gt; o
 </code></pre>
 <br />
 
-Executes the command but does not wait for a response and ignores any errors.
+Executes the command but does not wait for a response and ignores any
+errors.
 
 __See also:__ [q/2](#q-2).
 
@@ -175,6 +184,8 @@ qp(Client::<a href="#type-client">client()</a>, Pipeline::<a href="#type-pipelin
 </code></pre>
 <br />
 
+Like qp/2 with a custom timeout.
+
 <a name="start_link-0"></a>
 
 ### start_link/0 ###
@@ -184,14 +195,93 @@ start_link() -&gt; {ok, Pid::pid()} | {error, Reason::term()}
 </code></pre>
 <br />
 
+Equivalent to [`start_link([])`](#start_link-1).
+
+Connect with default options.
+
 <a name="start_link-1"></a>
 
 ### start_link/1 ###
 
 <pre><code>
-start_link(Options::[<a href="#type-option">option()</a> | {host, <a href="#type-host">host()</a>} | {port, <a href="inet.md#type-port_number">inet:port_number()</a>}]) -&gt; {ok, pid()} | {error, Reason::term()}
+start_link(Options::<a href="#type-options">options()</a>) -&gt; {ok, pid()} | {error, Reason::term()}
 </code></pre>
 <br />
+
+`Options`: 
+
+<dt><code>{host, Host}</code></dt>
+
+
+
+<dd>DNS name or IP address as string; or unix domain
+  socket as <code>{local, Path}</code> (available in OTP 19+); default <code>"127.0.0.1"</code></dd>
+
+
+
+<dt><code>{port, Port}</code></dt>
+
+
+
+<dd>Integer, default is 6379</dd>
+
+
+
+<dt><code>{database, Database}</code></dt>
+
+
+
+<dd>Integer (or string containing a number);
+  0 for default database</dd>
+
+
+
+<dt><code>{password, Password}</code></dt>
+
+
+
+<dd>String or empty string for no password;
+  default: <code>""</code> i.e. no password</dd>
+
+
+
+<dt><code>{reconnect_sleep, ReconnectSleep}</code></dt>
+
+
+
+<dd>Integer of milliseconds to
+  sleep between reconnect attempts; default: 100</dd>
+
+
+
+<dt><code>{connect_timeout, Timeout}</code></dt>
+
+
+
+<dd>Timeout value in milliseconds to use
+  when connecting to Redis; default: 5000</dd>
+
+
+
+<dt><code>{socket_options, SockOpts}</code></dt>
+
+
+
+<dd>List of<a href="https://erlang.org/doc/man/gen_tcp.md">gen_tcp options</a> used
+  when connecting the socket; default is <code>?SOCKET_OPTS</code></dd>
+
+
+
+<dt><code>{tls, TlsOpts}</code></dt>
+
+
+
+<dd>Enabling TLS and a list of<a href="https://erlang.org/doc/man/ssl.md">ssl options</a>; used when
+  establishing a TLS connection; default is off</dd>
+
+<br />
+
+Connect with the given options.
 
 <a name="start_link-2"></a>
 
@@ -202,14 +292,73 @@ start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-po
 </code></pre>
 <br />
 
+Equivalent to [`start_link([{host, Host}, {port, Port}])`](#start_link-1).
+
+Connect to the given host and port.
+
 <a name="start_link-3"></a>
 
 ### start_link/3 ###
 
 <pre><code>
-start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Options::<a href="#type-options">options()</a>) -&gt; {ok, Pid::pid()} | {error, Reason::term()}
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, OptionsOrDatabase) -&gt; {ok, Pid::pid()} | {error, Reason::term()}
+</code></pre>
+
+<ul class="definitions"><li><code>OptionsOrDatabase = <a href="#type-options">options()</a> | string()</code></li></ul>
+
+__This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
+
+<a name="start_link-4"></a>
+
+### start_link/4 ###
+
+<pre><code>
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::string(), Password::string()) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 <br />
+
+__This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
+
+__See also:__ [start_link/1](#start_link-1).
+
+<a name="start_link-5"></a>
+
+### start_link/5 ###
+
+<pre><code>
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::string(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>) -&gt; {ok, pid()} | {error, term()}
+</code></pre>
+<br />
+
+__This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
+
+__See also:__ [start_link/1](#start_link-1).
+
+<a name="start_link-6"></a>
+
+### start_link/6 ###
+
+<pre><code>
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::string(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>, ConnectTimeout::timeout()) -&gt; {ok, pid()} | {error, term()}
+</code></pre>
+<br />
+
+__This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
+
+__See also:__ [start_link/1](#start_link-1).
+
+<a name="start_link-7"></a>
+
+### start_link/7 ###
+
+<pre><code>
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::string(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>, ConnectTimeout::timeout(), SocketOptions::list()) -&gt; {ok, pid()} | {error, term()}
+</code></pre>
+<br />
+
+__This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
+
+__See also:__ [start_link/1](#start_link-1).
 
 <a name="stop-1"></a>
 
@@ -219,4 +368,6 @@ start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-po
 stop(Client::<a href="#type-client">client()</a>) -&gt; ok
 </code></pre>
 <br />
+
+Closes the connection and stops the client.
 
