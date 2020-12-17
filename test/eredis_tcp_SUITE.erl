@@ -262,7 +262,8 @@ t_faulty_logical_database(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     Res = eredis:start_link("127.0.0.1", ?PORT, [{database, 99999999},
                                                  {reconnect_sleep, no_reconnect}]),
-    ?assertMatch({error, {select_error, {unexpected_response, <<"-ERR DB", _/binary>>}}}, Res),
+    %% Note: The error message content has changed from Redis 3 to Redis 4
+    ?assertMatch({error, {select_error, {unexpected_response, <<"-ERR", _/binary>>}}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
     process_flag(trap_exit, false),
@@ -272,7 +273,8 @@ t_authentication_error(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     Res = eredis:start_link("127.0.0.1", ?PORT, [{password, "password"},
                                                  {reconnect_sleep, no_reconnect}]),
-    ?assertMatch({error, {authentication_error, {unexpected_response, <<"-ERR AUTH", _/binary>>}}}, Res),
+    %% Note: The error message content has changed from Redis 5 to Redis 6
+    ?assertMatch({error, {authentication_error, {unexpected_response, <<"-ERR", _/binary>>}}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
     process_flag(trap_exit, false),
