@@ -226,10 +226,20 @@ appropriately, even when reconnecting after a timeout.
 
 ## Benchmarking
 
-Using [basho_bench](https://github.com/basho/basho_bench/) you may
+Using [lasp-bench](https://github.com/lasp-lang/lasp-bench/) you may
 benchmark Eredis on your own hardware using the provided config and
 driver. See `priv/basho_bench_driver_eredis.config` and
 `src/basho_bench_driver_eredis.erl`.
+
+Testcase summary from our daily runs:
+
+* [eredis](https://bjosv.github.io/eredis-benchmark/results/latest/eredis/summary.png)
+* [eredis_pipeline](https://bjosv.github.io/eredis-benchmark/results/latest/eredis_pipeline/summary.png)
+
+The [eredis-benchmark](https://github.com/bjosv/eredis-benchmark) repo runs
+a daily job that produces above graphs. It also contains the script
+`run-tests.sh` that might help you with the needed steps when setting up the
+benchmark testing on your own.
 
 ## Queueing
 

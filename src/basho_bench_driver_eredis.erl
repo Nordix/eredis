@@ -23,7 +23,7 @@ new(_Id) ->
 run(get, KeyGen, _ValueGen, Client) ->
     Start = KeyGen(),
     %%case eredis:q(["MGET" | lists:seq(Start, Start + 500)]) of
-    case catch(eredis:q(Client, ["GET", Start], 100)) of
+    case catch(eredis:q(Client, ["GET", Start], 200)) of
         {ok, _Value} ->
             {ok, Client};
         {error, Reason} ->
@@ -51,7 +51,7 @@ run(pipeline_get, KeyGen, _ValueGen, Client) ->
     end;
 
 run(put, KeyGen, ValueGen, Client) ->
-    case catch(eredis:q(Client, ["SET", KeyGen(), ValueGen()], 100)) of
+    case catch(eredis:q(Client, ["SET", KeyGen(), ValueGen()], 200)) of
         {ok, <<"OK">>} ->
             {ok, Client};
         {error, Reason} ->
