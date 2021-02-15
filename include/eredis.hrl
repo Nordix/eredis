@@ -27,10 +27,14 @@
 -type parser_state() :: status_continue | bulk_continue | multibulk_continue | error_continue.
 
 %% Internal types
--ifdef(namespaced_types).
+-ifdef(OTP_RELEASE). % OTP >= 21
+-type eredis_queue() :: queue:queue().
+-else.
+-ifdef(namespaced_types). % Macro defined in rebar.conf if OTP >= 17
 -type eredis_queue() :: queue:queue().
 -else.
 -type eredis_queue() :: queue().
+-endif.
 -endif.
 
 %% Internal parser state. Is returned from parse/2 and must be
