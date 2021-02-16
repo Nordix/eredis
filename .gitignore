@@ -6,7 +6,6 @@ Emakefile
 .DS_Store
 _build
 erl_crash.dump
-/doc/README.md
-/doc/erlang.png
-/doc/edoc-info
-/doc/stylesheet.css
+doc/
+deps/
+mix.lock
