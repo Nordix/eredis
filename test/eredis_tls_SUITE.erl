@@ -96,9 +96,14 @@ t_tls_1_2_cert_expired(Config) when is_list(Config) ->
 t_tls_1_3_cert_expired(Config) when is_list(Config) ->
     ExtraOptions = [],
     CertDir = "tls_expired_client_certs",
-    %%io:format(user, "## ~p~n", [ssl:cipher_suites(all, 'tlsv1.3')]),
     C = c_tls(ExtraOptions, CertDir, [{versions, ['tlsv1.3']}]),
-    ?assertMatch({error, {tls_alert, {certificate_expired, _}}}, eredis:q(C, ["GET", foo])),
+    %% Depending on timing the query will result in a tls_alert error,
+    %% but if the error indication was handled before sending the query
+    %% the connection has already been taken down, hence a no_connection
+    case eredis:q(C, ["GET", foo]) of
+        {error, {tls_alert, {certificate_expired, _}}} -> ok;
+        {error, no_connection} -> ok
+    end,
     ?assertMatch(ok, eredis:stop(C)).
 -endif.
 -endif.
