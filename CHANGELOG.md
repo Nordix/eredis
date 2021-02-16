@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.3.1-nordix
+
+February 2021.
+
+* Fix build problems with Mix and other non-Rebar tools
+
 ## v1.3.0-nordix
 
 December 2020 in the Nordix fork by Björn Svensson and Viktor Söderqvist.

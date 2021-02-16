@@ -4,7 +4,7 @@ defmodule Eredis.Mixfile do
   def project do
     [
       app: :eredis,
-      version: "1.3.0-nordix",
+      version: "1.3.1-nordix",
       elixir: ">= 1.5.1",
       start_permanent: Mix.env == :prod,
       deps: deps()
