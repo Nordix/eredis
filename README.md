@@ -2,8 +2,13 @@
 
 Non-blocking Redis client with focus on performance and robustness.
 
-Improvements and changes in this fork compared to `wooga/eredis`: TLS support
-and error handling corrections. See [CHANGELOG.md](CHANGELOG.md).
+[![Build Status](https://github.com/Nordix/eredis/workflows/CI/badge.svg)](https://github.com/Nordix/eredis)
+[![Hex pm](http://img.shields.io/hexpm/v/eredis.svg?style=flat)](https://hex.pm/packages/eredis)
+[![Hex.pm](https://img.shields.io/hexpm/dt/eredis.svg)](https://hex.pm/packages/eredis)
+
+Improvements and changes in this fork compared to `wooga/eredis` includes
+TLS support and TCP error handling corrections. See [CHANGELOG.md](CHANGELOG.md)
+for details.
 
 Supported Redis features:
 
