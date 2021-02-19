@@ -1,6 +1,6 @@
 .PHONY: all compile clean test ut ct-tcp ct-tls edoc xref dialyzer elvis cover coverview
 
-REDIS_VERSION ?= 6.0.4
+REDIS_VERSION ?= 6.0.10
 
 all: compile xref dialyzer elvis
 

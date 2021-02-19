@@ -317,7 +317,7 @@ t_tcp_closed(Config) when is_list(Config) ->
     C = c(),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     tcp_closed_rig(C),
-    timer:sleep(1300), %% Wait for reconnection (1000ms)
+    timer:sleep(200), %% Wait for reconnection (after ~100ms)
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     ?assertMatch(ok, eredis:stop(C)).
 
@@ -475,13 +475,16 @@ tcp_closed_rig(C) ->
     %% closed. This behavior can be observed when Redis closes an idle
     %% connection just as a traffic burst starts.
     DoSend = fun(tcp_closed) ->
+                     %% Let commands be handled before triggering a tcp_closed.
+                     timer:sleep(10),
                      C ! {tcp_closed, fake_socket};
                 (Cmd) ->
                      eredis:q(C, Cmd)
              end,
-    %% attach an id to each message for later
-    Msgs = [{1, ["GET", "foo"]},
-            {2, ["GET", "bar"]},
+    %% Using blocking commands to avoid responses from Redis before the
+    %% connection is closed. Attach an id to each message for later.
+    Msgs = [{1, ["WAIT", "1", "1000"]},
+            {2, ["WAIT", "1", "1000"]},
             {3, tcp_closed}],
     Pids = [ remote_query(DoSend, M) || M <- Msgs ],
     Results = gather_remote_queries(Pids),
