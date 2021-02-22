@@ -34,8 +34,37 @@ ct-tls:
 		--suite eredis_tls_SUITE || { docker logs redis; exit 1; }
 	@docker rm -f redis
 
+# Generate and patch documentation.
+# The patching is needed to be able to generate documentation via Elixirs mix.
+# Following changes are needed:
+# - Handle link targets in headers, changes:
+#     '### <a name="link">Header</a> ###' to
+#     '<a name="link"></a> ### Header ###'
+# - Newline needed for before following tags:
+#     </table> </dd> </pre>
+# - Removal of unneeded line breaks (visual only)
+#
+# Note: sed on macOS requires explicit in-place extensions (-i <extension>)
 edoc:
 	@rebar3 edoc skip_deps=true
+	for file in doc/*.md ; do \
+		sed -i.bak 's|### <a name="\(.*\)">\(.*\)</a> ###|<a name="\1"></a>\n### \2 ###|g' $${file} ; \
+		sed -i.bak 's|</table>|\n</table>|g' $${file} ; \
+		sed -i.bak 's|</dd>|\n</dd>|g' $${file} ; \
+		sed -i.bak 's|</code></pre>|</code>\n</pre>|g' $${file} ; \
+		sed -i.bak 's|<br />||g' $${file} ; \
+		rm $${file}.bak ; \
+	done
+
+publish: edoc
+	@touch doc/.build # Prohibit ex_doc to remove .md files
+	@mix docs
+	@if [ ! -z "$$(git status --untracked-file=no --porcelain)" ]; \
+	then \
+		echo "Error: Working directory is dirty. Please commit before publish!"; \
+		exit 1; \
+	fi
+	mix hex.publish package
 
 xref:
 	@rebar3 xref

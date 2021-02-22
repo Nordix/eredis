@@ -13,7 +13,9 @@ Supported Redis features:
  * Authentication & multiple DBs
  * Pubsub
 
-Generedated API documentation: [doc/eredis.md](doc/eredis.md)
+Generated API documentation: [doc/eredis.md](doc/eredis.md)
+
+Published documentation can also be found on [hexdocs](https://hexdocs.pm/eredis/).
 
 ## Setup
 

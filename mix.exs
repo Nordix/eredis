@@ -16,7 +16,8 @@ defmodule Eredis.Mixfile do
       version: @version,
       docs: [
         main: "readme",
-        extras: ["README.md", "CHANGELOG.md", "doc/eredis.md", "doc/eredis_sub.md"]
+        extras: ["README.md", "CHANGELOG.md", "doc/eredis.md", "doc/eredis_sub.md"],
+        api_reference: false
       ]
     ]
   end
@@ -29,7 +30,9 @@ defmodule Eredis.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_doc, "~> 0.22", only: :dev, runtime: false}
+      # Use latest version of ex_doc to create correct tables
+      # {:ex_doc, "~> 0.22", only: :dev, runtime: false}
+      {:ex_doc, git: "https://github.com/elixir-lang/ex_doc.git", tag: "master", only: :dev, runtime: false}
     ]
   end
 
