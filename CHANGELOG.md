@@ -1,12 +1,16 @@
 # CHANGELOG
 
+## v1.3.2
+
+February 2021.
+
+* Official release
+
 ## v1.3.1-nordix
 
 February 2021.
 
 * Fix build problems with Mix and other non-Rebar tools
-* Mix file to publish in Hex.pm
-* Nordix fork turns to be the official distributed version on Hex.pm
 
 ## v1.3.0-nordix
 
