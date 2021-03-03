@@ -64,7 +64,7 @@ publish: edoc
 		echo "Error: Working directory is dirty. Please commit before publish!"; \
 		exit 1; \
 	fi
-	mix hex.publish package
+	mix hex.publish
 
 xref:
 	@rebar3 xref

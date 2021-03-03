@@ -38,6 +38,7 @@ defmodule Eredis.Mixfile do
 
   defp package() do
     [
+      files: ["src", "include", "mix.exs", "rebar.config", "AUTHORS", "CHANGELOG.md", "LICENSE", "README.md"],
       maintainers: ["Viktor Söderqvist", "Bjorn Svensson"],
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url}
