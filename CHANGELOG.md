@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.3.3
+
+March 2021.
+
+* Include correct files in published package on hex.pm.
+
 ## v1.3.2
 
 February 2021.
