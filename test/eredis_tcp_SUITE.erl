@@ -35,6 +35,8 @@
         , t_connect_no_reconnect/1
         , t_tcp_closed_no_reconnect/1
         , t_reconnect/1
+        , t_auth_password_success/1
+        , t_auth_username_password_success/1
         , t_error_socket_closed_before_auth/1
         , t_error_socket_closed_while_waiting_for_auth_response/1
         , t_error_socket_closed_before_select_db/1
@@ -359,14 +361,48 @@ t_error_socket_closed_before_auth(Config) when is_list(Config) ->
     ?assertEqual(died, IsDead),
     eredis_test_utils:stop_server(Pid).
 
+t_auth_password_success(Config) when is_list(Config) ->
+    %% Simulate a connection to Redis and successful AUTH command.
+    {ok, ServerPid, Port} =
+        eredis_test_utils:start_server(
+          fun(ClientSocket) ->
+                  {ok, <<"*2\r\n$4\r\nAUTH\r\n$8\r\npassword\r\n">>} =
+                      gen_tcp:recv(ClientSocket, 0, 2000),
+                  gen_tcp:send(ClientSocket, <<"+OK\r\n">>),
+                  {error, closed} = gen_tcp:recv(ClientSocket, 1000)
+          end),
+    {ok, ClientPid} = eredis:start_link("127.0.0.1", Port,
+                                        [{password, "password"}]),
+    ?assertEqual(ok, eredis:stop(ClientPid)),
+    eredis_test_utils:stop_server(ServerPid).
+
+t_auth_username_password_success(Config) when is_list(Config) ->
+    %% Simulate a connection to Redis and successful AUTH command with username.
+    {ok, ServerPid, Port} =
+        eredis_test_utils:start_server(
+          fun(ClientSocket) ->
+                  {ok, <<"*3\r\n$4\r\nAUTH\r\n",
+                         "$7\r\nalibaba\r\n$6\r\nsesame\r\n">>} =
+                      gen_tcp:recv(ClientSocket, 0, 2000),
+                  gen_tcp:send(ClientSocket, <<"+OK\r\n">>),
+                  {error, closed} = gen_tcp:recv(ClientSocket, 1000)
+          end),
+    {ok, ClientPid} = eredis:start_link("127.0.0.1", Port,
+                                        [{username, "alibaba"},
+                                         {password, "sesame"}]),
+    ?assertEqual(ok, eredis:stop(ClientPid)),
+    eredis_test_utils:stop_server(ServerPid).
+
 t_error_socket_closed_while_waiting_for_auth_response(Config) when is_list(Config) ->
     %% Simulate that Redis closes the connection after the AUTH
     %% command was sent.
-    {ok, Pid, Port} = eredis_test_utils:start_server(
-                        fun(ClientSocket) ->
-                                {ok, <<"AUTH \"password\"\r\n">>} = gen_tcp:recv(ClientSocket, 0, 2000),
-                                ok = gen_tcp:close(ClientSocket)
-                        end),
+    {ok, Pid, Port} =
+        eredis_test_utils:start_server(
+          fun(ClientSocket) ->
+                  {ok, <<"*2\r\n$4\r\nAUTH\r\n$8\r\npassword\r\n">>} =
+                      gen_tcp:recv(ClientSocket, 0, 2000),
+                  ok = gen_tcp:close(ClientSocket)
+          end),
     process_flag(trap_exit, true),
     Res = eredis:start_link("127.0.0.1", Port, [{password, "password"},
                                                 {reconnect_sleep, no_reconnect}]),

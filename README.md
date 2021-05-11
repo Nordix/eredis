@@ -149,7 +149,8 @@ takes the following options (proplist):
   Path}` (available in OTP 19+)
 * `port`: integer, default is 6379
 * `database`: integer or 0 for default database, default: 0
-* `password`: string or empty string for no password, default: "" i.e. no password
+* `username`: string, default: no username
+* `password`: string, default: no password
 * `reconnect_sleep`: integer of milliseconds to sleep between reconnect attempts, default: 100
 * `connect_timeout`: timeout value in milliseconds to use in the connect, default: 5000
 * `socket_options`: proplist of [gen_tcp](https://erlang.org/doc/man/gen_tcp.html)

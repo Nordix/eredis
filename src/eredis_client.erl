@@ -41,7 +41,7 @@
 -record(state, {
                 host            :: string() | {local, string()} | undefined,
                 port            :: integer() | undefined,
-                password        :: binary() | undefined,
+                auth_cmd        :: iodata() | undefined,
                 database        :: binary() | undefined,
                 reconnect_sleep :: reconnect_sleep() | undefined,
                 connect_timeout :: integer() | undefined,
@@ -75,7 +75,8 @@ init(Options) ->
     Host           = proplists:get_value(host, Options, "localhost"),
     Port           = proplists:get_value(port, Options, 6379),
     Database       = proplists:get_value(database, Options, 0),
-    Password       = proplists:get_value(password, Options, ""),
+    Username       = proplists:get_value(username, Options, undefined),
+    Password       = proplists:get_value(password, Options, undefined),
     ReconnectSleep = proplists:get_value(reconnect_sleep, Options, ?RECONNECT_SLEEP),
     ConnectTimeout = proplists:get_value(connect_timeout, Options, ?CONNECT_TIMEOUT),
     SocketOptions  = proplists:get_value(socket_options, Options, []),
@@ -88,7 +89,7 @@ init(Options) ->
     State = #state{host = Host,
                    port = Port,
                    database = read_database(Database),
-                   password = list_to_binary(Password),
+                   auth_cmd = get_auth_command(Username, Password),
                    reconnect_sleep = ReconnectSleep,
                    connect_timeout = ConnectTimeout,
                    socket_options = SocketOptions,
@@ -369,7 +370,8 @@ connect_next_addr([Addr|Addrs], Port, ConnectOptions, State) ->
         {ok, Socket} ->
             case maybe_upgrade_to_tls(Socket, State) of
                 {ok, NewSocket} ->
-                    case authenticate(NewSocket, State#state.transport, State#state.password) of
+                    case authenticate(NewSocket, State#state.transport,
+                                      State#state.auth_cmd) of
                         ok ->
                             case select_database(NewSocket, State#state.transport, State#state.database) of
                                 ok ->
@@ -452,10 +454,10 @@ select_database(_Socket, _TransportType, <<"0">>) ->
 select_database(Socket, TransportType, Database) ->
     do_sync_command(Socket, TransportType, ["SELECT", " ", Database, "\r\n"]).
 
-authenticate(_Socket, _TransportType, <<>>) ->
+authenticate(_Socket, _TransportType, undefined) ->
     ok;
-authenticate(Socket, TransportType, Password) ->
-    do_sync_command(Socket, TransportType, ["AUTH", " \"", Password, "\"\r\n"]).
+authenticate(Socket, TransportType, AuthCmd) ->
+    do_sync_command(Socket, TransportType, AuthCmd).
 
 %% @doc: Executes the given command synchronously, expects Redis to
 %% return "+OK\r\n", otherwise it will fail.
@@ -534,10 +536,22 @@ read_database(undefined) ->
 read_database(Database) when is_integer(Database) ->
     list_to_binary(integer_to_list(Database)).
 
+-spec get_auth_command(Username :: iodata() | undefined,
+                       Password :: iodata() | undefined) ->
+          iodata() | undefined.
+get_auth_command(undefined, undefined) ->
+    undefined;
+get_auth_command(undefined, "") -> % legacy
+    undefined;
+get_auth_command(undefined, Password) ->
+    eredis:create_multibulk([<<"AUTH">>, Password]);
+get_auth_command(Username, Password) ->
+    eredis:create_multibulk([<<"AUTH">>, Username, Password]).
+
 get_all_messages(Acc) ->
     receive
         M ->
-            [M | Acc]
+            get_all_messages([M | Acc])
     after 0 ->
             lists:reverse(Acc)
     end.

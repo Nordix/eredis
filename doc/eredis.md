@@ -263,12 +263,20 @@ start_link(Options::<a href="#type-options">options()</a>) -&gt; {ok, pid()} | {
 
 
 
+<dt><code>{username, Username}</code></dt>
+
+
+
+<dd>String; default: no username
+</dd>
+
+
+
 <dt><code>{password, Password}</code></dt>
 
 
 
-<dd>String or empty string for no password;
-  default: <code>""</code> i.e. no password
+<dd>String; default: no password
 </dd>
 
 
