@@ -41,7 +41,7 @@ host() = string() | {local, string()}
 
 
 <pre><code>
-option() = {host, string() | {local, string()}} | {port, <a href="inet.md#type-port_number">inet:port_number()</a>} | {database, integer() | string()} | {password, string()} | {reconnect_sleep, <a href="#type-reconnect_sleep">reconnect_sleep()</a>} | {connect_timeout, integer()} | {socket_options, list()} | {tls, [<a href="ssl.md#type-tls_client_option">ssl:tls_client_option()</a>]}
+option() = {host, string() | {local, string()}} | {port, <a href="inet.md#type-port_number">inet:port_number()</a>} | {database, integer() | string()} | {password, string()} | {reconnect_sleep, <a href="#type-reconnect_sleep">reconnect_sleep()</a>} | {connect_timeout, integer()} | {socket_options, list()} | {tls, [<a href="ssl.md#type-tls_client_option">ssl:tls_client_option()</a>]} | {name, <a href="#type-registered_name">registered_name()</a>}
 </code>
 </pre>
 
@@ -78,6 +78,18 @@ pipeline() = [iolist()]
 
 <pre><code>
 reconnect_sleep() = no_reconnect | integer()
+</code>
+</pre>
+
+
+
+
+<a name="type-registered_name"></a>
+### registered_name() ###
+
+
+<pre><code>
+registered_name() = {local, atom()} | {global, term()} | {via, atom(), term()}
 </code>
 </pre>
 
@@ -317,6 +329,17 @@ start_link(Options::<a href="#type-options">options()</a>) -&gt; {ok, pid()} | {
 
 <dd>Enabling TLS and a list of<a href="https://erlang.org/doc/man/ssl.md">ssl options</a>; used when
   establishing a TLS connection; default is off
+</dd>
+
+
+
+<dt><code>{name, Name}</code></dt>
+
+
+
+<dd>Tuple to register the client with a name
+  such as <code>{local, atom()}</code>; for all options see <code>ServerName</code> at<a href="https://erlang.org/doc/man/gen_server.md#start_link-4">gen_server:start_link/4</a>;
+  default: no name
 </dd>
 
 

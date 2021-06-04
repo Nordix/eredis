@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.4.0
+
+June 2021.
+
+* Add support for named connection processes.
+
 ## v1.3.3
 
 March 2021.

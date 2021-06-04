@@ -1,6 +1,7 @@
 %% Public types
 
 -type reconnect_sleep() :: no_reconnect | integer().
+-type registered_name() :: {local, atom()} | {global, term()} | {via, atom(), term()}.
 
 -type option() :: {host, string() | {local, string()}} |
                   {port, inet:port_number()} |
@@ -9,7 +10,8 @@
                   {reconnect_sleep, reconnect_sleep()} |
                   {connect_timeout, integer()} |
                   {socket_options, list()} |
-                  {tls, [ssl:tls_client_option()]}.
+                  {tls, [ssl:tls_client_option()]} |
+                  {name, registered_name()}.
 
 -type options() :: [option()].
 -type server_args() :: options().               % for backwards compatibility

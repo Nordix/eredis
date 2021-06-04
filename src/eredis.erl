@@ -61,6 +61,10 @@ start_link() ->
 %% <dt>`{tls, TlsOpts}'</dt><dd>Enabling TLS and a list of
 %% <a href="https://erlang.org/doc/man/ssl.html">ssl options</a>; used when
 %% establishing a TLS connection; default is off</dd>
+%% <dt>`{name, Name}'</dt><dd>Tuple to register the client with a name
+%% such as `{local, atom()}'; for all options see `ServerName' at
+%% <a href="https://erlang.org/doc/man/gen_server.html#start_link-4">gen_server:start_link/4</a>;
+%% default: no name</dd>
 %% </dl>
 -spec start_link(options()) -> {ok, pid()} | {error, Reason::term()}.
 start_link(Options) ->

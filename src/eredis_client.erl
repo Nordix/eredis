@@ -61,7 +61,12 @@
 -spec start_link(Options::options()) ->
           {ok, Pid::pid()} | {error, Reason::term()}.
 start_link(Options) ->
-    gen_server:start_link(?MODULE, Options, []).
+    case proplists:lookup(name, Options) of
+        {name, Name} ->
+            gen_server:start_link(Name, ?MODULE, Options, []);
+        none ->
+            gen_server:start_link(?MODULE, Options, [])
+    end.
 
 
 stop(Pid) ->
