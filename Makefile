@@ -26,7 +26,7 @@ ct-tcp:
 	@docker rm -f redis
 
 ct-tls:
-	@priv/update-client-cert.sh tls_soon_expired_client_certs
+	@priv/generate-test-certs.sh
 	-@docker rm -f redis
 	@docker run --name redis -d --net=host -v $(shell pwd)/priv/configs:/conf:ro \
 		redis:$(REDIS_VERSION) redis-server /conf/redis_tls.conf

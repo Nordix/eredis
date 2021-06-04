@@ -7,6 +7,9 @@ Emakefile
 _build
 erl_crash.dump
 
+# tls certs for testing
+priv/configs/tls*
+
 # edoc and edown
 doc/README.md
 doc/edoc-info
