@@ -31,8 +31,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.cache/rebar3/hex/hexpm/packages
-          key: ${{ runner.os }}-hex-${{ hashFiles('**/rebar.lock') }}
-          restore-keys: ${{ runner.os }}-hex-
+          key: ${{ runner.os }}-${{ matrix.otp-version }}-hex-${{ hashFiles('**/rebar.lock') }}
 
       - name: Cache Dialyzer PLTs
         uses: actions/cache@v2
@@ -46,6 +45,13 @@ jobs:
           DEB_NAME="esl-erlang_${{ matrix.otp-version }}-1~ubuntu~${{ matrix.lsb_release }}_amd64.deb"
           curl -f https://packages.erlang-solutions.com/erlang/debian/pool/$DEB_NAME -o $DEB_NAME
           sudo dpkg --install $DEB_NAME
+
+      - name: Install compatible rebar3 version
+        if: ${{ startsWith(matrix.otp-version, '20.') || startsWith(matrix.otp-version, '21.') }}
+        run: |
+          git clone https://github.com/erlang/rebar3.git
+          cd rebar3 && git checkout 3.15.2 && ./bootstrap && ./rebar3 local install
+          echo "$HOME/.cache/rebar3/bin" >> $GITHUB_PATH
 
       - name: Install elvis
         run: |
