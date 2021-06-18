@@ -5,5 +5,5 @@
                         eredis_sub_client]},
               {registered,[]},
               {applications,[kernel,stdlib]},
-              {maintainers,["Björn Svensson", "Viktor Söderqvist"]},
+              {maintainers,["Bjorn Svensson", "Viktor Soderqvist"]},
               {licenses,["MIT"]}]}.
