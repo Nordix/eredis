@@ -337,6 +337,23 @@ parse_multibulk_with_large_bulk_test() ->
     ?assertEqual({ok, [<<"1">>, A], init()},
                  parse_in_chunks(B, 1460, init())).
 
+%% Parse a string multiple times, with the data chunk boundaries inside the bulk
+%% size part of the protocol. This is a performance thingy. Check the time
+%% measurements printed by eunit.
+parse_bulks_with_chunk_split_in_size_test() ->
+    A = binary:copy(<<"a">>, 100000),
+    Start = <<"$100">>,
+    End = <<"000\r\n", A/binary, "\r\n">>,
+    Wrap = <<End/binary, Start/binary>>,
+    {continue, FinalPstate} =
+        lists:foldl(fun (_, {continue, Pstate1}) ->
+                            {ok, A, RestData, Pstate2} = parse(Pstate1, Wrap),
+                            parse(Pstate2, RestData)
+                    end,
+                    parse(init(), Start),
+                    lists:seq(1, 10000)),
+    ?assertEqual({ok, A, init()}, parse(FinalPstate, End)).
+
 %%
 %% Helpers
 %%

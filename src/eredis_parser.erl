@@ -119,12 +119,10 @@ do_parse(start, <<Type, Data/binary>>) ->
     end;
 do_parse({StateTag, Acc}, Data) when StateTag =:= status_continue;
                                      StateTag =:= error_continue ->
-    Buffer = <<Acc/binary, Data/binary>>,
-    case get_newline_pos(Buffer) of
-        undefined ->
-            {continue, {StateTag, Buffer}};
-        NewlinePos ->
-            <<Value:NewlinePos/binary, ?NL, RestData/binary>> = Buffer,
+    case split_by_newline(Acc, Data) of
+        nomatch ->
+            {continue, {StateTag, <<Acc/binary, Data/binary>>}};
+        {Value, RestData} ->
             Tag = case StateTag of
                       status_continue -> ok;
                       error_continue -> error
@@ -136,13 +134,11 @@ do_parse({StateTag, Acc}, Data) when StateTag =:= bulk_size;
     %% Find the position of the first terminator, everything up until
     %% this point contains the size specifier. If we cannot find it,
     %% we received a partial response and need more data
-    Buffer = <<Acc/binary, Data/binary>>,
-    case get_newline_pos(Buffer) of
-        undefined ->
+    case split_by_newline(Acc, Data) of
+        nomatch ->
             %% Incomplete size
-            {continue, {StateTag, Buffer}};
-        NewlinePos ->
-            <<Size:NewlinePos/binary, ?NL, RestData/binary>> = Buffer,
+            {continue, {StateTag, <<Acc/binary, Data/binary>>}};
+        {Size, RestData} ->
             IntSize = binary_to_integer(Size),
             NextState = case StateTag of
                             bulk_size      -> {bulk_continue, IntSize, <<>>};
@@ -178,8 +174,22 @@ do_parse({multibulk_continue, _RemainingItems, _Acc} = State, <<>>) ->
 do_parse({multibulk_continue, _RemainingItems, _Acc} = State, Data) ->
     {nested, State, Data}.
 
-get_newline_pos(B) ->
-    case binary:match(B, <<?NL>>) of
-        {Pos, _Len} -> Pos;
-        nomatch -> undefined
+%% Concat two binaries and then split by "\r\n", but without actually
+%% concatenating, thus avoiding creating a large binary which becomes garbage.
+%%
+%% Pre-condition: Acc does not contain "\r\n".
+split_by_newline(Acc, <<"\n", Rest/binary>>)
+  when binary_part(Acc, byte_size(Acc), -1) =:= <<"\r">> ->
+    %% Special case where the "\r\n" sequence is split between Acc and Data
+    FirstLine = binary_part(Acc, 0, byte_size(Acc) - 1),
+    {FirstLine, Rest};
+split_by_newline(Acc, Data) ->
+    %% There's no "\r\n" in Acc so we can search only in Data.
+    case binary:match(Data, <<"\r\n">>) of
+        nomatch ->
+            nomatch;
+        {NewlinePos, 2} ->
+            <<LineEnd:NewlinePos/binary, "\r\n", Rest/binary>> = Data,
+            FirstLine = <<Acc/binary, LineEnd/binary>>,
+            {FirstLine, Rest}
     end.
