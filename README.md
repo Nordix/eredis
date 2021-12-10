@@ -145,7 +145,7 @@ commands you provided.
 To start the client, use `start_link/1` or one of its variants. `start_link/1`
 takes the following options (proplist):
 
-* `host`: DNS name or IP adress as string; or unix domain socket as `{local,
+* `host`: DNS name or IP address as string; or unix domain socket as `{local,
   Path}` (available in OTP 19+)
 * `port`: integer, default is 6379
 * `database`: integer or 0 for default database, default: 0

@@ -32,7 +32,7 @@ start_server(Fun) ->
     Port = receive_from(Pid, 5000),
     {ok, Pid, Port}.
 
-%% Stop server and close client socket aswell if needed.
+%% Stop server and close client socket as well if needed.
 -spec stop_server(Pid :: pid()) -> ok.
 stop_server(Pid) ->
     Pid ! shutdown.

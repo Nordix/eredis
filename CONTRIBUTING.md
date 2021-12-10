@@ -18,7 +18,7 @@ Normally done by the maintainers.
 * Update the version in `src/eredis.app.src` and `mix.exs`.
 * Update CHANGELOG.md and add what's new since the last version. (Use e.g. `git
   log *PREV_VERSION*..HEAD`).
-* Check that documentation is generated and commited using `make edoc`.
+* Check that documentation is generated and committed using `make edoc`.
 * Commit the changes, push and check the build.
 * Publish to Hex using `make publish` (requires `mix` and a Hex account with
   rights to publish this project). (This can be done later.)

@@ -10,7 +10,7 @@
 %% This approach lets us write a "pure" parser that does not depend on
 %% manipulating the socket, which erldis and redis-erl is
 %% doing. Instead, we may ask the socket to send us data as fast as
-%% possible and parse it continously. The overhead of manipulating the
+%% possible and parse it continuously. The overhead of manipulating the
 %% socket when parsing multibulk responses is killing the performance
 %% of erldis.
 %%

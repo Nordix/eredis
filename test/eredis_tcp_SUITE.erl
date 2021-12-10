@@ -485,7 +485,7 @@ t_ignore_old_socket(Config) when is_list(Config) ->
     %% previously used socket and keeps the current connection open.
     %% The events are simulated by sending similar messages the
     %% client process would receive as a socket owner process
-    %% when these events occure.
+    %% when these events occurred.
     {ok, C} = eredis:start_link("127.0.0.1", ?PORT, []),
     [Socket] = get_tcp_ports(C),
     C ! {tcp, old_socket, data}, %% Incoming data event

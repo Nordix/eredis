@@ -331,13 +331,13 @@ reply_all(Value, Queue) ->
         empty ->
             ok;
         {value, Item} ->
-            safe_reply(receipient(Item), Value),
+            safe_reply(recipient(Item), Value),
             reply_all(Value, queue:drop(Queue))
     end.
 
-receipient({_, From}) ->
+recipient({_, From}) ->
     From;
-receipient({_, From, _}) ->
+recipient({_, From, _}) ->
     From.
 
 safe_reply(undefined, _Value) ->
