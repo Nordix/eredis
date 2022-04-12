@@ -47,8 +47,7 @@ start_link() ->
 %% <dt>`{host, Host}'</dt><dd>DNS name or IP address as string; or unix domain
 %% socket as `{local, Path}' (available in OTP 19+); default `"127.0.0.1"'</dd>
 %% <dt>`{port, Port}'</dt><dd>Integer, default is 6379</dd>
-%% <dt>`{database, Database}'</dt><dd>Integer (or string containing a number);
-%% 0 for default database</dd>
+%% <dt>`{database, Database}'</dt><dd>Integer; 0 for the default database</dd>
 %% <dt>`{username, Username}'</dt><dd>String; default: no username</dd>
 %% <dt>`{password, Password}'</dt><dd>String; default: no password</dd>
 %% <dt>`{reconnect_sleep, ReconnectSleep}'</dt><dd>Integer of milliseconds to
@@ -81,7 +80,7 @@ start_link(Host, Port) ->
 %% @deprecated Use {@link start_link/1} instead.
 -spec start_link(Host::host(), Port::inet:port_number(), OptionsOrDatabase) ->
           {ok, Pid::pid()} | {error, Reason::term()}
-              when OptionsOrDatabase :: options() | string().
+              when OptionsOrDatabase :: options() | integer().
 start_link(Host, Port, Options) when Options =:= []; is_tuple(hd(Options)) ->
     start_link([{host, Host}, {port, Port} | Options]);
 start_link(Host, Port, Database) ->
@@ -89,7 +88,7 @@ start_link(Host, Port, Database) ->
 
 %% @deprecated Use {@link start_link/1} instead.
 %% @see start_link/1
--spec start_link(host(), inet:port_number(), string(), string()) ->
+-spec start_link(host(), inet:port_number(), integer(), string()) ->
           {ok, pid()} | {error, term()}.
 start_link(Host, Port, Database, Password) ->
     start_link([{host, Host}, {port, Port}, {database, Database},
@@ -97,7 +96,7 @@ start_link(Host, Port, Database, Password) ->
 
 %% @deprecated Use {@link start_link/1} instead.
 %% @see start_link/1
--spec start_link(host(), inet:port_number(), string(), string(),
+-spec start_link(host(), inet:port_number(), integer(), string(),
                  reconnect_sleep()) ->
           {ok, pid()} | {error, term()}.
 start_link(Host, Port, Database, Password, ReconnectSleep) ->
@@ -106,7 +105,7 @@ start_link(Host, Port, Database, Password, ReconnectSleep) ->
 
 %% @deprecated Use {@link start_link/1} instead.
 %% @see start_link/1
--spec start_link(host(), inet:port_number(), string(), string(),
+-spec start_link(host(), inet:port_number(), integer(), string(),
                  reconnect_sleep(), timeout()) ->
           {ok, pid()} | {error, term()}.
 start_link(Host, Port, Database, Password, ReconnectSleep, ConnectTimeout) ->
@@ -116,7 +115,7 @@ start_link(Host, Port, Database, Password, ReconnectSleep, ConnectTimeout) ->
 
 %% @deprecated Use {@link start_link/1} instead.
 %% @see start_link/1
--spec start_link(host(), inet:port_number(), string(), string(),
+-spec start_link(host(), inet:port_number(), integer(), string(),
                  reconnect_sleep(), timeout(), list()) ->
           {ok, pid()} | {error, term()}.
 start_link(Host, Port, Database, Password, ReconnectSleep, ConnectTimeout,

@@ -41,7 +41,7 @@ host() = string() | {local, string()}
 
 
 <pre><code>
-option() = {host, string() | {local, string()}} | {port, <a href="inet.md#type-port_number">inet:port_number()</a>} | {database, integer() | string()} | {password, string()} | {reconnect_sleep, <a href="#type-reconnect_sleep">reconnect_sleep()</a>} | {connect_timeout, integer()} | {socket_options, list()} | {tls, [<a href="ssl.md#type-tls_client_option">ssl:tls_client_option()</a>]} | {name, <a href="#type-registered_name">registered_name()</a>}
+option() = {host, string() | {local, string()}} | {port, <a href="inet.md#type-port_number">inet:port_number()</a>} | {database, integer()} | {password, string()} | {reconnect_sleep, <a href="#type-reconnect_sleep">reconnect_sleep()</a>} | {connect_timeout, integer()} | {socket_options, list()} | {tls, [<a href="ssl.md#type-tls_client_option">ssl:tls_client_option()</a>]} | {name, <a href="#type-registered_name">registered_name()</a>}
 </code>
 </pre>
 
@@ -269,8 +269,7 @@ start_link(Options::<a href="#type-options">options()</a>) -&gt; {ok, pid()} | {
 
 
 
-<dd>Integer (or string containing a number);
-  0 for default database
+<dd>Integer; 0 for the default database
 </dd>
 
 
@@ -369,7 +368,7 @@ start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-po
 </code>
 </pre>
 
-<ul class="definitions"><li><code>OptionsOrDatabase = <a href="#type-options">options()</a> | string()</code></li></ul>
+<ul class="definitions"><li><code>OptionsOrDatabase = <a href="#type-options">options()</a> | integer()</code></li></ul>
 
 __This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
 
@@ -378,7 +377,7 @@ __This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
 ### start_link/4 ###
 
 <pre><code>
-start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::string(), Password::string()) -&gt; {ok, pid()} | {error, term()}
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::integer(), Password::string()) -&gt; {ok, pid()} | {error, term()}
 </code>
 </pre>
 
@@ -392,7 +391,7 @@ __See also:__ [start_link/1](#start_link-1).
 ### start_link/5 ###
 
 <pre><code>
-start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::string(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>) -&gt; {ok, pid()} | {error, term()}
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::integer(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>) -&gt; {ok, pid()} | {error, term()}
 </code>
 </pre>
 
@@ -406,7 +405,7 @@ __See also:__ [start_link/1](#start_link-1).
 ### start_link/6 ###
 
 <pre><code>
-start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::string(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>, ConnectTimeout::timeout()) -&gt; {ok, pid()} | {error, term()}
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::integer(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>, ConnectTimeout::timeout()) -&gt; {ok, pid()} | {error, term()}
 </code>
 </pre>
 
@@ -420,7 +419,7 @@ __See also:__ [start_link/1](#start_link-1).
 ### start_link/7 ###
 
 <pre><code>
-start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::string(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>, ConnectTimeout::timeout(), SocketOptions::list()) -&gt; {ok, pid()} | {error, term()}
+start_link(Host::<a href="#type-host">host()</a>, Port::<a href="inet.md#type-port_number">inet:port_number()</a>, Database::integer(), Password::string(), ReconnectSleep::<a href="#type-reconnect_sleep">reconnect_sleep()</a>, ConnectTimeout::timeout(), SocketOptions::list()) -&gt; {ok, pid()} | {error, term()}
 </code>
 </pre>
 
