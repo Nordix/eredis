@@ -9,17 +9,17 @@ jobs:
   ci:
     strategy:
       matrix:
-        include:
-          - otp-version: 23.1
+        include: # See https://www.erlang-solutions.com/downloads/
+          - otp-version: 24.3.3
+            platform: ubuntu-20.04
+            lsb_release: focal
+          - otp-version: 23.3.4.5
             platform: ubuntu-20.04
             lsb_release: focal
           - otp-version: 22.3.4.9
             platform: ubuntu-20.04
             lsb_release: focal
           - otp-version: 21.3.8.17
-            platform: ubuntu-20.04
-            lsb_release: focal
-          - otp-version: 20.3.8.26
             platform: ubuntu-20.04
             lsb_release: focal
     runs-on: ${{ matrix.platform }}
