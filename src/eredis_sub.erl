@@ -14,6 +14,14 @@
 
 -export([psubscribe/2, punsubscribe/2]).
 
+-export_type([sub_options/0, sub_option/0]).
+
+-type sub_option() ::
+        {max_queue_size, integer() | infinity} |
+        {queue_behaviour, drop | exit} |
+        option().
+-type sub_options() :: [sub_option()].
+
 %%
 %% PUBLIC API
 %%
@@ -21,9 +29,11 @@
 start_link() ->
     start_link([]).
 
+%% @deprecated Use {@link start_link/1} instead.
 start_link(Host, Port, Password) ->
     start_link(Host, Port, Password, 100, infinity, drop).
 
+%% @deprecated Use {@link start_link/1} instead.
 start_link(Host, Port, Password, ReconnectSleep,
            MaxQueueSize, QueueBehaviour)
   when is_list(Host) andalso
@@ -32,21 +42,43 @@ start_link(Host, Port, Password, ReconnectSleep,
        (is_integer(ReconnectSleep) orelse ReconnectSleep =:= no_reconnect) andalso
        (is_integer(MaxQueueSize) orelse MaxQueueSize =:= infinity) andalso
        (QueueBehaviour =:= drop orelse QueueBehaviour =:= exit) ->
+    start_link([{host, Host},
+                {port, Port},
+                {password, Password},
+                {reconnect_sleep, ReconnectSleep},
+                {max_queue_size, MaxQueueSize},
+                {queue_behaviour, QueueBehaviour}]).
 
-    eredis_sub_client:start_link(Host, Port, Password, ReconnectSleep,
-                                 MaxQueueSize, QueueBehaviour).
-
-%% @doc: Callback for starting from poolboy
--spec start_link(options()) -> {ok, Pid::pid()} | {error, Reason::term()}.
-start_link(Args) ->
-    Host           = proplists:get_value(host, Args, "127.0.0.1"),
-    Port           = proplists:get_value(port, Args, 6379),
-    Password       = proplists:get_value(password, Args, ""),
-    ReconnectSleep = proplists:get_value(reconnect_sleep, Args, 100),
-    MaxQueueSize   = proplists:get_value(max_queue_size, Args, infinity),
-    QueueBehaviour = proplists:get_value(queue_behaviour, Args, drop),
-    start_link(Host, Port, Password, ReconnectSleep,
-               MaxQueueSize, QueueBehaviour).
+%% @doc Start with options in proplist format.
+%%
+%% @param Options <dl>
+%% <dt>`{host, Host}'</dt><dd>DNS name or IP address as string; or unix domain
+%% socket as `{local, Path}' (available in OTP 19+); default `"127.0.0.1"'</dd>
+%% <dt>`{port, Port}'</dt><dd>Integer, default is 6379</dd>
+%% <dt>`{database, Database}'</dt><dd>Integer; 0 for the default database</dd>
+%% <dt>`{username, Username}'</dt><dd>String; default: no username</dd>
+%% <dt>`{password, Password}'</dt><dd>String; default: no password</dd>
+%% <dt>`{reconnect_sleep, ReconnectSleep}'</dt><dd>Integer of milliseconds to
+%% sleep between reconnect attempts; default: 100</dd>
+%% <dt>`{connect_timeout, Timeout}'</dt><dd>Timeout value in milliseconds to use
+%% when connecting to Redis; default: 5000</dd>
+%% <dt>`{socket_options, SockOpts}'</dt><dd>List of
+%% <a href="https://erlang.org/doc/man/gen_tcp.html">gen_tcp options</a> used
+%% when connecting the socket; default is `?SOCKET_OPTS'</dd>
+%% <dt>`{tls, TlsOpts}'</dt><dd>Enabling TLS and a list of
+%% <a href="https://erlang.org/doc/man/ssl.html">ssl options</a>; used when
+%% establishing a TLS connection; default is off</dd>
+%% <dt>`{name, Name}'</dt><dd>Tuple to register the client with a name
+%% such as `{local, atom()}'; for all options see `ServerName' at
+%% <a href="https://erlang.org/doc/man/gen_server.html#start_link-4">gen_server:start_link/4</a>;
+%% default: no name</dd>
+%% <dt>`{max_queue_size, N}'</dt><dd>Queue size for incoming pubsub messages</dd>
+%% <dt>`{queue_behaviour, drop | exit}'</dt><dd>What to do if the controlling
+%% process doesn't ack pubsub messages fast enough</dd>.
+%% </dl>
+-spec start_link(sub_options()) -> {ok, Pid::pid()} | {error, Reason::term()}.
+start_link(Options) ->
+    eredis_sub_client:start_link(Options).
 
 stop(Pid) ->
     eredis_sub_client:stop(Pid).

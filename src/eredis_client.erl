@@ -36,7 +36,7 @@
          terminate/2, code_change/3]).
 
 %% Used by eredis_sub_client.erl
--export([do_sync_command/3]).
+-export([read_database/1, get_auth_command/2, connect/7, reconnect_loop/9]).
 
 -record(state, {
                 host            :: string() | {local, string()} | undefined,
@@ -86,10 +86,7 @@ init(Options) ->
     ConnectTimeout = proplists:get_value(connect_timeout, Options, ?CONNECT_TIMEOUT),
     SocketOptions  = proplists:get_value(socket_options, Options, []),
     TlsOptions     = proplists:get_value(tls, Options, []),
-    Transport      = case TlsOptions of
-                         [] -> gen_tcp;
-                         _ -> ssl
-                     end,
+    Transport      = transport_module(TlsOptions),
 
     State = #state{host = Host,
                    port = Port,
@@ -231,8 +228,10 @@ handle_info(initiate_connection, #state{socket = undefined} = State) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(_Reason, State) ->
-    close_socket(State, State#state.socket).
+terminate(_Reason, #state{socket = undefined}) ->
+    ok;
+terminate(_Reason, #state{socket = Socket, transport = Transport}) ->
+    Transport:close(Socket).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -357,36 +356,63 @@ safe_send(Pid, Value) ->
 %% @doc: Helper for connecting to Redis, authenticating and selecting
 %% the correct database synchronously.
 %% Returns: {ok, State} or {error, Reason}.
-connect(State) ->
-    {ok, {AFamily, Addrs}} = get_addrs(State#state.host),
-    Port = case AFamily of
-               local -> 0;
-               _ -> State#state.port
-           end,
-
-    SocketOptions = lists:ukeymerge(1, lists:keysort(1, State#state.socket_options),
-                                    lists:keysort(1, ?SOCKET_OPTS)),
-    ConnectOptions = [AFamily | [?SOCKET_MODE | SocketOptions]],
-
-    connect_next_addr(Addrs, Port, ConnectOptions, State).
-
-connect_next_addr([Addr|Addrs], Port, ConnectOptions, State) ->
-    case gen_tcp:connect(Addr, Port, ConnectOptions, State#state.connect_timeout) of
+connect(#state{host = Host,
+               port = Port,
+               socket_options = SocketOptions,
+               tls_options = TlsOptions,
+               connect_timeout = ConnectTimeout,
+               auth_cmd = AuthCmd,
+               database = Db} = State) ->
+    case connect(Host, Port, SocketOptions, TlsOptions,
+                 ConnectTimeout, AuthCmd, Db) of
         {ok, Socket} ->
-            case maybe_upgrade_to_tls(Socket, State) of
+            {ok, State#state{socket = Socket}};
+        Error ->
+            Error
+    end.
+
+%% Connect helper also used by eredis_sub_client.
+-spec connect(Host           :: string() | {local, string()} | undefined,
+              Port           :: integer() | undefined,
+              SocketOptions  :: list(),
+              TlsOptions     :: list(),
+              ConnectTimeout :: integer() | undefined,
+              AuthCmd        :: iodata() | undefined,
+              Db             :: binary() | undefined) ->
+          {ok, Socket :: gen_tcp:socket() | ssl:sslsocket()} |
+          {error, Reason :: term()}.
+connect(Host, Port, SocketOptions, TlsOptions, ConnectTimeout, AuthCmd, Db) ->
+    {ok, {AFamily, Addrs}} = get_addrs(Host),
+    Port1 = case AFamily of
+                local -> 0;
+                _ -> Port
+            end,
+
+    SocketOptions1 = lists:ukeymerge(1, lists:keysort(1, SocketOptions),
+                                     lists:keysort(1, ?SOCKET_OPTS)),
+    SocketOptions2 = [AFamily | [?SOCKET_MODE | SocketOptions1]],
+
+    connect_next_addr(Addrs, Port1, SocketOptions2, TlsOptions, ConnectTimeout,
+                      AuthCmd, Db).
+
+connect_next_addr([Addr|Addrs], Port, SocketOptions, TlsOptions, ConnectTimeout,
+                  AuthCmd, Db) ->
+    case gen_tcp:connect(Addr, Port, SocketOptions, ConnectTimeout) of
+        {ok, Socket} ->
+            case maybe_upgrade_to_tls(Socket, TlsOptions, ConnectTimeout) of
                 {ok, NewSocket} ->
-                    case authenticate(NewSocket, State#state.transport,
-                                      State#state.auth_cmd) of
+                    Transport = transport_module(TlsOptions),
+                    case authenticate(NewSocket, Transport, AuthCmd) of
                         ok ->
-                            case select_database(NewSocket, State#state.transport, State#state.database) of
+                            case select_database(NewSocket, Transport, Db) of
                                 ok ->
-                                    {ok, State#state{socket = NewSocket}};
+                                    {ok, NewSocket};
                                 {error, Reason} ->
-                                    close_socket(State, NewSocket),
+                                    Transport:close(NewSocket),
                                     {error, {select_error, Reason}}
                             end;
                         {error, Reason} ->
-                            close_socket(State, NewSocket),
+                            Transport:close(NewSocket),
                             {error, {authentication_error, Reason}}
                     end;
                 {error, Reason} ->
@@ -397,27 +423,26 @@ connect_next_addr([Addr|Addrs], Port, ConnectOptions, State) ->
             {error, {connection_error, Reason}};
         {error, _Reason} ->
             %% Try next address
-            connect_next_addr(Addrs, Port, ConnectOptions, State)
+            connect_next_addr(Addrs, Port, SocketOptions, TlsOptions,
+                              ConnectTimeout, AuthCmd, Db)
     end.
 
-maybe_upgrade_to_tls(Socket, #state{transport = ssl} = State) ->
-    %% setopt needs to be 'false' before an upgrade to ssl is possible
+maybe_upgrade_to_tls(Socket, [], _Timeout) ->
+    {ok, Socket};
+maybe_upgrade_to_tls(Socket, TlsOptions, Timeout) ->
+    %% Active needs to be 'false' before an upgrade to ssl is possible
     case inet:setopts(Socket, [{active, false}]) of
         ok ->
-            upgrade_to_tls(Socket, State);
-        {error, Reason} ->
-            {error, Reason}
-    end;
-maybe_upgrade_to_tls(Socket, _State) ->
-    {ok, Socket}.
-
-upgrade_to_tls(Socket, State) ->
-    case ssl:connect(Socket, State#state.tls_options, State#state.connect_timeout) of
-        {ok, NewSocket} ->
-            %% Enter `{active, once}' mode. NOTE: tls/ssl doesn't support `{active, N}'
-            case ssl:setopts(NewSocket, [{active, once}]) of
-                ok ->
-                    {ok, NewSocket};
+            case ssl:connect(Socket, TlsOptions, Timeout) of
+                {ok, NewSocket} ->
+                    %% Enter `{active, once}' mode. NOTE: tls/ssl doesn't
+                    %% support `{active, N}'
+                    case ssl:setopts(NewSocket, [{active, once}]) of
+                        ok ->
+                            {ok, NewSocket};
+                        {error, Reason} ->
+                            {error, Reason}
+                    end;
                 {error, Reason} ->
                     {error, Reason}
             end;
@@ -489,9 +514,8 @@ do_sync_command2(Socket, Transport, Command) ->
             {error, Reason}
     end.
 
-close_socket(_State, _Socket = undefined) -> ok;
-close_socket(#state{transport = ssl}, Socket) -> ssl:close(Socket);
-close_socket(#state{transport = gen_tcp}, Socket) -> gen_tcp:close(Socket).
+transport_module([]) -> gen_tcp;
+transport_module(_) -> ssl.
 
 setopts(Socket, _Transport=gen_tcp, Opts) -> inet:setopts(Socket, Opts);
 setopts(Socket, _Transport=ssl, Opts)     ->  ssl:setopts(Socket, Opts).
@@ -501,12 +525,24 @@ maybe_reconnect(Reason, #state{reconnect_sleep = no_reconnect, queue = Queue} = 
     %% If we aren't going to reconnect, then there is nothing else for
     %% this process to do.
     {stop, normal, State#state{socket = undefined}};
-maybe_reconnect(Reason, #state{queue = Queue} = State) ->
+maybe_reconnect(Reason,
+                #state{queue = Queue,
+                       host = Host,
+                       port = Port,
+                       socket_options = SocketOptions,
+                       tls_options = TlsOptions,
+                       connect_timeout = ConnectTimeout,
+                       reconnect_sleep = ReconnectSleep,
+                       auth_cmd = AuthCmd,
+                       database = Db} = State) ->
     error_logger:error_msg("eredis: Re-establishing connection to ~p:~p due to ~p",
-                           [State#state.host, State#state.port, Reason]),
+                           [Host, Port, Reason]),
     Self = self(),
-    spawn_link(fun() -> process_flag(trap_exit, true),
-                        reconnect_loop(Self, State)
+    spawn_link(fun() ->
+                       process_flag(trap_exit, true),
+                       reconnect_loop(Self, ReconnectSleep, Host, Port,
+                                      SocketOptions, TlsOptions, ConnectTimeout,
+                                      AuthCmd, Db)
                end),
 
     %% tell all of our clients what has happened.
@@ -519,20 +555,28 @@ maybe_reconnect(Reason, #state{queue = Queue} = State) ->
 
 %% @doc: Loop until a connection can be established, this includes
 %% successfully issuing the auth and select calls. When we have a
-%% connection, give the socket to the redis client.
-reconnect_loop(Client, #state{reconnect_sleep=ReconnectSleep, transport=Transport}=State) ->
+%% connection, send the socket to Client in a message on the form
+%% `{connection_ready, Socket}'.
+reconnect_loop(Client, ReconnectSleep, Host, Port, SocketOptions,
+               TlsOptions, ConnectTimeout, AuthCmd, Db) ->
     receive
         {'EXIT', Client, Reason} -> exit(Reason)
     after
         ReconnectSleep ->
-            case connect(State) of
-                {ok, #state{socket = Socket}} ->
+            Client ! reconnect_attempt,
+            case connect(Host, Port, SocketOptions, TlsOptions, ConnectTimeout,
+                         AuthCmd, Db) of
+                {ok, Socket} ->
                     Client ! {connection_ready, Socket},
+                    Transport = transport_module(TlsOptions),
                     Transport:controlling_process(Socket, Client),
                     Msgs = get_all_messages([]),
                     [Client ! M || M <- Msgs];
-                {error, _Reason} ->
-                    reconnect_loop(Client, State)
+                {error, Reason} ->
+                    Client ! {reconnect_failed, Reason},
+                    reconnect_loop(Client, ReconnectSleep, Host, Port,
+                                   SocketOptions, TlsOptions, ConnectTimeout,
+                                   AuthCmd, Db)
             end
     end.
 
