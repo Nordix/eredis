@@ -36,18 +36,6 @@ option() = {host, string() | {local, string()}} | {port, <a href="inet.md#type-p
 
 
 
-<a name="type-options"></a>
-### options() ###
-
-
-<pre><code>
-options() = [<a href="#type-option">option()</a>]
-</code>
-</pre>
-
-
-
-
 <a name="type-reconnect_sleep"></a>
 ### reconnect_sleep() ###
 
@@ -69,6 +57,30 @@ registered_name() = {local, atom()} | {global, term()} | {via, atom(), term()}
 </code>
 </pre>
 
+
+
+
+<a name="type-sub_option"></a>
+### sub_option() ###
+
+
+<pre><code>
+sub_option() = {max_queue_size, integer() | infinity} | {queue_behaviour, drop | exit} | <a href="#type-option">option()</a>
+</code>
+</pre>
+
+
+
+
+<a name="type-sub_options"></a>
+### sub_options() ###
+
+
+<pre><code>
+sub_options() = [<a href="#type-sub_option">sub_option()</a>]
+</code>
+</pre>
+
 <a name="index"></a>
 
 ## Function Index ##
@@ -76,7 +88,7 @@ registered_name() = {local, atom()} | {global, term()} | {via, atom(), term()}
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#ack_message-1">ack_message/1</a></td><td> acknowledge the receipt of a pubsub message.</td></tr><tr><td valign="top"><a href="#channels-1">channels/1</a></td><td> Returns the channels the given client is currently
 subscribing to.</td></tr><tr><td valign="top"><a href="#controlling_process-1">controlling_process/1</a></td><td> Make the calling process the controlling process.</td></tr><tr><td valign="top"><a href="#controlling_process-2">controlling_process/2</a></td><td> Make the given process (pid) the controlling process.</td></tr><tr><td valign="top"><a href="#controlling_process-3">controlling_process/3</a></td><td> Make the given process (pid) the controlling process subscriber
-with the given Timeout.</td></tr><tr><td valign="top"><a href="#psubscribe-2">psubscribe/2</a></td><td> Pattern subscribe to the given channels.</td></tr><tr><td valign="top"><a href="#punsubscribe-2">punsubscribe/2</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td> Callback for starting from poolboy.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-6">start_link/6</a></td><td></td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td></td></tr><tr><td valign="top"><a href="#subscribe-2">subscribe/2</a></td><td> Subscribe to the given channels.</td></tr><tr><td valign="top"><a href="#unsubscribe-2">unsubscribe/2</a></td><td></td></tr>
+with the given Timeout.</td></tr><tr><td valign="top"><a href="#psubscribe-2">psubscribe/2</a></td><td> Pattern subscribe to the given channels.</td></tr><tr><td valign="top"><a href="#punsubscribe-2">punsubscribe/2</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Start with options in proplist format.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>(<em>Deprecated</em>.) </td></tr><tr><td valign="top"><a href="#start_link-6">start_link/6</a></td><td>(<em>Deprecated</em>.) </td></tr><tr><td valign="top"><a href="#stop-1">stop/1</a></td><td></td></tr><tr><td valign="top"><a href="#subscribe-2">subscribe/2</a></td><td> Subscribe to the given channels.</td></tr><tr><td valign="top"><a href="#unsubscribe-2">unsubscribe/2</a></td><td></td></tr>
 </table>
 
 
@@ -208,12 +220,130 @@ punsubscribe(Client::pid(), Channels::[<a href="#type-channel">channel()</a>]) -
 ### start_link/1 ###
 
 <pre><code>
-start_link(Args::<a href="#type-options">options()</a>) -&gt; {ok, Pid::pid()} | {error, Reason::term()}
+start_link(Options::<a href="#type-sub_options">sub_options()</a>) -&gt; {ok, Pid::pid()} | {error, Reason::term()}
 </code>
 </pre>
 
 
-Callback for starting from poolboy
+`Options`: 
+
+<dt><code>{host, Host}</code></dt>
+
+
+
+<dd>DNS name or IP address as string; or unix domain
+  socket as <code>{local, Path}</code> (available in OTP 19+); default <code>"127.0.0.1"</code>
+</dd>
+
+
+
+<dt><code>{port, Port}</code></dt>
+
+
+
+<dd>Integer, default is 6379
+</dd>
+
+
+
+<dt><code>{database, Database}</code></dt>
+
+
+
+<dd>Integer; 0 for the default database
+</dd>
+
+
+
+<dt><code>{username, Username}</code></dt>
+
+
+
+<dd>String; default: no username
+</dd>
+
+
+
+<dt><code>{password, Password}</code></dt>
+
+
+
+<dd>String; default: no password
+</dd>
+
+
+
+<dt><code>{reconnect_sleep, ReconnectSleep}</code></dt>
+
+
+
+<dd>Integer of milliseconds to
+  sleep between reconnect attempts; default: 100
+</dd>
+
+
+
+<dt><code>{connect_timeout, Timeout}</code></dt>
+
+
+
+<dd>Timeout value in milliseconds to use
+  when connecting to Redis; default: 5000
+</dd>
+
+
+
+<dt><code>{socket_options, SockOpts}</code></dt>
+
+
+
+<dd>List of<a href="https://erlang.org/doc/man/gen_tcp.md">gen_tcp options</a> used
+  when connecting the socket; default is <code>?SOCKET_OPTS</code>
+</dd>
+
+
+
+<dt><code>{tls, TlsOpts}</code></dt>
+
+
+
+<dd>Enabling TLS and a list of<a href="https://erlang.org/doc/man/ssl.md">ssl options</a>; used when
+  establishing a TLS connection; default is off
+</dd>
+
+
+
+<dt><code>{name, Name}</code></dt>
+
+
+
+<dd>Tuple to register the client with a name
+  such as <code>{local, atom()}</code>; for all options see <code>ServerName</code> at<a href="https://erlang.org/doc/man/gen_server.md#start_link-4">gen_server:start_link/4</a>;
+  default: no name
+</dd>
+
+
+
+<dt><code>{max_queue_size, N}</code></dt>
+
+
+
+<dd>Queue size for incoming pubsub messages
+</dd>
+
+
+
+<dt><code>{queue_behaviour, drop | exit}</code></dt>
+
+
+
+<dd>What to do if the controlling
+  process doesn't ack pubsub messages fast enough
+</dd>
+
+.
+
+Start with options in proplist format.
 
 <a name="start_link-3"></a>
 
@@ -221,11 +351,15 @@ Callback for starting from poolboy
 
 `start_link(Host, Port, Password) -> any()`
 
+__This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
+
 <a name="start_link-6"></a>
 
 ### start_link/6 ###
 
 `start_link(Host, Port, Password, ReconnectSleep, MaxQueueSize, QueueBehaviour) -> any()`
+
+__This function is deprecated:__ Use [`start_link/1`](#start_link-1) instead.
 
 <a name="stop-1"></a>
 
