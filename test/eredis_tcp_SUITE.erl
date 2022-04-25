@@ -9,9 +9,13 @@
 
 %% Test cases
 -export([ t_connect/1
+        , t_connect_eredis_sub/1
         , t_connect_ipv6/1
+        , t_connect_ipv6_eredis_sub/1
         , t_connect_hostname/1
+        , t_connect_hostname_eredis_sub/1
         , t_connect_local/1
+        , t_connect_local_eredis_sub/1
         , t_stop/1
         , t_get_set/1
         , t_set_get_term/1
@@ -24,25 +28,39 @@
         , t_q_noreply/1
         , t_q_async/1
         , t_undefined_database/1
+        , t_undefined_database_eredis_sub/1
         , t_select_logical_database/1
+        , t_select_logical_database_eredis_sub/1
         , t_faulty_logical_database/1
+        , t_faulty_logical_database_eredis_sub/1
         , t_authentication_error/1
+        , t_authentication_error_eredis_sub/1
         , t_connection_failure_during_start_no_reconnect/1
+        , t_connection_failure_during_start_no_reconnect_eredis_sub/1
         , t_connection_failure_during_start_reconnect/1
+        , t_connection_failure_during_start_reconnect_eredis_sub/1
         , t_unknown_client_call/1
         , t_unknown_client_cast/1
         , t_tcp_closed/1
         , t_connect_no_reconnect/1
+        , t_connect_no_reconnect_eredis_sub/1
         , t_tcp_closed_no_reconnect/1
         , t_reconnect/1
+        , t_reconnect_eredis_sub/1
         , t_auth_password_success/1
+        , t_auth_password_success_eredis_sub/1
         , t_auth_username_password_success/1
+        , t_auth_username_password_success_eredis_sub/1
         , t_error_socket_closed_before_auth/1
+        , t_error_socket_closed_before_auth_eredis_sub/1
         , t_error_socket_closed_while_waiting_for_auth_response/1
         , t_error_socket_closed_before_select_db/1
+        , t_error_socket_closed_before_select_db_eredis_sub/1
         , t_error_socket_closed_while_waiting_for_select_db_response/1
+        , t_error_socket_closed_while_waiting_for_select_db_response_eredis_sub/1
         , t_send_error/1
         , t_ignore_old_socket/1
+        , t_ignore_old_socket_eredis_sub/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -60,7 +78,7 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
-all() -> [F || {F, _A} <- module_info(exports),
+all() -> [F || {F, 1} <- module_info(exports),
                case atom_to_list(F) of
                    "t_" ++ _ -> true;
                    _         -> false
@@ -83,18 +101,56 @@ t_connect(Config) when is_list(Config) ->
     ?assertMatch({ok, _}, eredis:start_link([])),
     ?assertMatch({ok, _}, eredis:start_link([{host, "127.0.0.1"}, {port, ?PORT}])).
 
+t_connect_eredis_sub(Config) when is_list(Config) ->
+    ?assertMatch({ok, _}, eredis:start_link()),
+    ?assertMatch({ok, _}, eredis:start_link("127.0.0.1", ?PORT, "")),
+    ?assertMatch({ok, _}, eredis:start_link([{host, "127.0.0.1"},
+                                             {port, ?PORT},
+                                             {database, 0},
+                                             {password, ""},
+                                             {reconnect_sleep, 100},
+                                             {connect_timeout, 5000},
+                                             {socket_options, [{keepalive, true}]}
+                                            ])),
+    ?assertMatch({ok, _}, eredis:start_link([])),
+    ?assertMatch({ok, _}, eredis:start_link([{host, "127.0.0.1"}, {port, ?PORT}])).
+
 t_connect_ipv6(Config) when is_list(Config) ->
-    ?assertMatch({ok, _}, eredis:start_link("::1", ?PORT, [{reconnect_sleep, no_reconnect}])).
+    t_connect_ipv6(eredis, Config).
+
+t_connect_ipv6_eredis_sub(Config) when is_list(Config) ->
+    t_connect_ipv6(eredis_sub, Config).
+
+t_connect_ipv6(Module, Config) when is_list(Config) ->
+    ?assertMatch({ok, _}, Module:start_link([{host, "::1"},
+                                             {port, ?PORT},
+                                             {reconnect_sleep, no_reconnect}])).
 
 t_connect_hostname(Config) when is_list(Config) ->
-    Res = eredis:start_link(net_adm:localhost(), ?PORT, [{reconnect_sleep, no_reconnect}]),
+    t_connect_hostname(eredis, Config).
+
+t_connect_hostname_eredis_sub(Config) when is_list(Config) ->
+    t_connect_hostname(eredis_sub, Config).
+
+t_connect_hostname(Module, Config) when is_list(Config) ->
+    Res = Module:start_link([{host, net_adm:localhost()},
+                             {port, ?PORT},
+                             {reconnect_sleep, no_reconnect}]),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
-    ?assertMatch(ok, eredis:stop(C)).
+    ?assertMatch(ok, Module:stop(C)).
 
 t_connect_local(Config) when is_list(Config) ->
+    t_connect_local(eredis, Config).
+
+t_connect_local_eredis_sub(Config) when is_list(Config) ->
+    t_connect_local(eredis_sub, Config).
+
+t_connect_local(Module, Config) when is_list(Config) ->
     process_flag(trap_exit, true),
-    eredis:start_link({local, "/var/run/redis.sock"}, 0, [{reconnect_sleep, no_reconnect}]),
+    Module:start_link([{host, {local, "/var/run/redis.sock"}},
+                       {port, 0},
+                       {reconnect_sleep, no_reconnect}]),
     IsDead = receive {'EXIT', _Pid, {connection_error, enoent}} -> died
              after 400 -> still_alive end,
     process_flag(trap_exit, false),
@@ -251,19 +307,43 @@ t_q_async(Config) when is_list(Config) ->
     ?assertMatch(ok, eredis:stop(C)).
 
 t_undefined_database(Config) when is_list(Config) ->
-    {ok, C} = eredis:start_link("127.0.0.1", ?PORT, [{database, undefined},
-                                                     {reconnect_sleep, no_reconnect}]),
-    ?assertMatch(ok, eredis:stop(C)).
+    t_undefined_database(eredis, Config).
+
+t_undefined_database_eredis_sub(Config) when is_list(Config) ->
+    t_undefined_database(eredis_sub, Config).
+
+t_undefined_database(Module, Config) when is_list(Config) ->
+    {ok, C} = Module:start_link([{host, "127.0.0.1"},
+                                 {port, ?PORT},
+                                 {database, undefined},
+                                 {reconnect_sleep, no_reconnect}]),
+    ?assertMatch(ok, Module:stop(C)).
 
 t_select_logical_database(Config) when is_list(Config) ->
-    {ok, C} =  eredis:start_link("127.0.0.1", ?PORT, [{database, 2},
-                                                      {reconnect_sleep, no_reconnect}]),
-    ?assertMatch(ok, eredis:stop(C)).
+    t_select_logical_database(eredis, Config).
+
+t_select_logical_database_eredis_sub(Config) when is_list(Config) ->
+    t_select_logical_database(eredis_sub, Config).
+
+t_select_logical_database(Module, Config) when is_list(Config) ->
+    {ok, C} =  Module:start_link([{host, "127.0.0.1"},
+                                  {port, ?PORT},
+                                  {database, 2},
+                                  {reconnect_sleep, no_reconnect}]),
+    ?assertMatch(ok, Module:stop(C)).
 
 t_faulty_logical_database(Config) when is_list(Config) ->
+    t_faulty_logical_database(eredis, Config).
+
+t_faulty_logical_database_eredis_sub(Config) when is_list(Config) ->
+    t_faulty_logical_database(eredis_sub, Config).
+
+t_faulty_logical_database(Module, _Config) ->
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", ?PORT, [{database, 99999999},
-                                                 {reconnect_sleep, no_reconnect}]),
+    Res = Module:start_link([{host, "127.0.0.1"},
+                             {port, ?PORT},
+                             {database, 99999999},
+                             {reconnect_sleep, no_reconnect}]),
     %% Note: The error message content has changed from Redis 3 to Redis 4
     ?assertMatch({error, {select_error, {unexpected_response, <<"-ERR", _/binary>>}}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
@@ -272,9 +352,17 @@ t_faulty_logical_database(Config) when is_list(Config) ->
     ?assertEqual(died, IsDead).
 
 t_authentication_error(Config) when is_list(Config) ->
+    t_authentication_error(eredis, Config).
+
+t_authentication_error_eredis_sub(Config) when is_list(Config) ->
+    t_authentication_error(eredis_sub, Config).
+
+t_authentication_error(Module, _Config) ->
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", ?PORT, [{password, "password"},
-                                                 {reconnect_sleep, no_reconnect}]),
+    Res = Module:start_link([{host, "127.0.0.1"},
+                             {port, ?PORT},
+                             {password, "password"},
+                             {reconnect_sleep, no_reconnect}]),
     %% Note: The error message content has changed from Redis 5 to Redis 6
     ?assertMatch({error, {authentication_error, {unexpected_response, <<"-ERR", _/binary>>}}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
@@ -283,9 +371,17 @@ t_authentication_error(Config) when is_list(Config) ->
     ?assertEqual(died, IsDead).
 
 t_connection_failure_during_start_no_reconnect(Config) when is_list(Config) ->
+    t_connection_failure_during_start_no_reconnect(eredis, Config).
+
+t_connection_failure_during_start_no_reconnect_eredis_sub(Config) ->
+    t_connection_failure_during_start_no_reconnect(eredis_sub, Config).
+
+t_connection_failure_during_start_no_reconnect(Module, _Config) ->
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", ?WRONG_PORT, [{reconnect_sleep, no_reconnect},
-                                                       {connect_timeout, 1000}]),
+    Res = Module:start_link([{host, "127.0.0.1"},
+                             {port, ?WRONG_PORT},
+                             {reconnect_sleep, no_reconnect},
+                             {connect_timeout, 1000}]),
     ?assertMatch({error, _}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
@@ -293,15 +389,23 @@ t_connection_failure_during_start_no_reconnect(Config) when is_list(Config) ->
     ?assertEqual(died, IsDead).
 
 t_connection_failure_during_start_reconnect(Config) when is_list(Config) ->
+    t_connection_failure_during_start_reconnect(eredis, Config).
+
+t_connection_failure_during_start_reconnect_eredis_sub(Config) ->
+    t_connection_failure_during_start_reconnect(eredis_sub, Config).
+
+t_connection_failure_during_start_reconnect(Module, _Config) ->
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", ?WRONG_PORT, [{reconnect_sleep, 100}]),
+    Res = Module:start_link([{host, "127.0.0.1"},
+                             {port, ?WRONG_PORT},
+                             {reconnect_sleep, 100}]),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     IsDead = receive {'EXIT', C, _} -> died
              after 400 -> still_alive end,
     process_flag(trap_exit, false),
     ?assertEqual(still_alive, IsDead),
-    ?assertMatch(ok, eredis:stop(C)).
+    ?assertMatch(ok, Module:stop(C)).
 
 t_unknown_client_call(Config) when is_list(Config) ->
     C = c(),
@@ -324,27 +428,47 @@ t_tcp_closed(Config) when is_list(Config) ->
     ?assertMatch(ok, eredis:stop(C)).
 
 t_connect_no_reconnect(Config) when is_list(Config) ->
-    C = c_no_reconnect(),
-    ?assertMatch(ok, eredis:stop(C)).
+    t_connect_no_reconnect(eredis, Config).
+
+t_connect_no_reconnect_eredis_sub(Config) when is_list(Config) ->
+    t_connect_no_reconnect(eredis_sub, Config).
+
+t_connect_no_reconnect(Module, _Config) ->
+    C = c_no_reconnect(Module),
+    ?assertMatch(ok, Module:stop(C)).
 
 t_tcp_closed_no_reconnect(Config) when is_list(Config) ->
-    C = c_no_reconnect(),
+    C = c_no_reconnect(eredis),
     tcp_closed_rig(C).
 
 t_reconnect(Config) when is_list(Config) ->
+    t_reconnect(eredis, Config).
+
+t_reconnect_eredis_sub(Config) when is_list(Config) ->
+    t_reconnect(eredis_sub, Config).
+
+t_reconnect(Module, _Config) ->
     %% Make sure a reconnect cleanup old sockets
     %% i.e we only have maximum 1 tcp port open
     ?assertEqual(0, length(get_tcp_ports())),
-    {ok, C} = eredis:start_link("127.0.0.1", ?PORT, [{password, "wrong_password"},
-                                                     {reconnect_sleep, 100},
-                                                     {connect_timeout, 200}]),
+    {ok, C} = Module:start_link([{host, "127.0.0.1"},
+                                 {port, ?PORT},
+                                 {password, "wrong_password"},
+                                 {reconnect_sleep, 100},
+                                 {connect_timeout, 200}]),
     timer:sleep(1000), %% expect a couple of reconnect attempts
     ?assert(length(get_tcp_ports()) =< 1),
-    ?assertMatch(ok, eredis:stop(C)),
+    ?assertMatch(ok, Module:stop(C)),
     timer:sleep(200), %% Wait for reconnect process to terminate
     ?assertEqual(0, length(get_tcp_ports())).
 
 t_error_socket_closed_before_auth(Config) when is_list(Config) ->
+    t_error_socket_closed_before_auth(eredis, Config).
+
+t_error_socket_closed_before_auth_eredis_sub(Config) when is_list(Config) ->
+    t_error_socket_closed_before_auth(eredis_sub, Config).
+
+t_error_socket_closed_before_auth(Module, Config) when is_list(Config) ->
     %% Simulate that Redis closes the connection directly, before eredis sends
     %% the AUTH command.
     {ok, Pid, Port} = eredis_test_utils:start_server(
@@ -352,8 +476,10 @@ t_error_socket_closed_before_auth(Config) when is_list(Config) ->
                                 ok = gen_tcp:close(ClientSocket)
                         end),
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", Port, [{password, "password"},
-                                                {reconnect_sleep, no_reconnect}]),
+    Res = Module:start_link([{host, "127.0.0.1"},
+                             {port, Port},
+                             {password, "password"},
+                             {reconnect_sleep, no_reconnect}]),
     ?assertMatch({error, {authentication_error, _}}, Res), %% einval or closed depending of timing
     IsDead = receive {'EXIT', _, _} -> died
              after 2000 -> still_alive end,
@@ -362,6 +488,12 @@ t_error_socket_closed_before_auth(Config) when is_list(Config) ->
     eredis_test_utils:stop_server(Pid).
 
 t_auth_password_success(Config) when is_list(Config) ->
+    t_auth_password_success(eredis, Config).
+
+t_auth_password_success_eredis_sub(Config) when is_list(Config) ->
+    t_auth_password_success(eredis_sub, Config).
+
+t_auth_password_success(Module, Config) when is_list(Config) ->
     %% Simulate a connection to Redis and successful AUTH command.
     {ok, ServerPid, Port} =
         eredis_test_utils:start_server(
@@ -371,12 +503,19 @@ t_auth_password_success(Config) when is_list(Config) ->
                   gen_tcp:send(ClientSocket, <<"+OK\r\n">>),
                   {error, closed} = gen_tcp:recv(ClientSocket, 1000)
           end),
-    {ok, ClientPid} = eredis:start_link("127.0.0.1", Port,
-                                        [{password, "password"}]),
-    ?assertEqual(ok, eredis:stop(ClientPid)),
+    {ok, ClientPid} = Module:start_link([{host, "127.0.0.1"},
+                                         {port, Port},
+                                         {password, "password"}]),
+    ?assertEqual(ok, Module:stop(ClientPid)),
     eredis_test_utils:stop_server(ServerPid).
 
 t_auth_username_password_success(Config) when is_list(Config) ->
+    t_auth_username_password_success(eredis, Config).
+
+t_auth_username_password_success_eredis_sub(Config) when is_list(Config) ->
+    t_auth_username_password_success(eredis_sub, Config).
+
+t_auth_username_password_success(Module, Config) when is_list(Config) ->
     %% Simulate a connection to Redis and successful AUTH command with username.
     {ok, ServerPid, Port} =
         eredis_test_utils:start_server(
@@ -387,10 +526,11 @@ t_auth_username_password_success(Config) when is_list(Config) ->
                   gen_tcp:send(ClientSocket, <<"+OK\r\n">>),
                   {error, closed} = gen_tcp:recv(ClientSocket, 1000)
           end),
-    {ok, ClientPid} = eredis:start_link("127.0.0.1", Port,
-                                        [{username, "alibaba"},
+    {ok, ClientPid} = Module:start_link([{host, "127.0.0.1"},
+                                         {port, Port},
+                                         {username, "alibaba"},
                                          {password, "sesame"}]),
-    ?assertEqual(ok, eredis:stop(ClientPid)),
+    ?assertEqual(ok, Module:stop(ClientPid)),
     eredis_test_utils:stop_server(ServerPid).
 
 t_error_socket_closed_while_waiting_for_auth_response(Config) when is_list(Config) ->
@@ -414,6 +554,12 @@ t_error_socket_closed_while_waiting_for_auth_response(Config) when is_list(Confi
     eredis_test_utils:stop_server(Pid).
 
 t_error_socket_closed_before_select_db(Config) when is_list(Config) ->
+    t_error_socket_closed_before_select_db(eredis, Config).
+
+t_error_socket_closed_before_select_db_eredis_sub(Config) when is_list(Config) ->
+    t_error_socket_closed_before_select_db(eredis_sub, Config).
+
+t_error_socket_closed_before_select_db(Module, Config) when is_list(Config) ->
     %% Simulate that Redis closes the connection directly, before eredis sends
     %% the SELECT command.
     {ok, Pid, Port} = eredis_test_utils:start_server(
@@ -421,8 +567,10 @@ t_error_socket_closed_before_select_db(Config) when is_list(Config) ->
                                 ok = gen_tcp:close(ClientSocket)
                         end),
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", Port, [{database, 2},
-                                                {reconnect_sleep, no_reconnect}]),
+    Res = Module:start_link([{host, "127.0.0.1"},
+                             {port, Port},
+                             {database, 2},
+                             {reconnect_sleep, no_reconnect}]),
     ?assertMatch({error, {select_error, _}}, Res), %% einval or closed depending of timing
     IsDead = receive {'EXIT', _, _} -> died
              after 2000 -> still_alive end,
@@ -431,6 +579,13 @@ t_error_socket_closed_before_select_db(Config) when is_list(Config) ->
     eredis_test_utils:stop_server(Pid).
 
 t_error_socket_closed_while_waiting_for_select_db_response(Config) when is_list(Config) ->
+    t_error_socket_closed_while_waiting_for_select_db_response(eredis, Config).
+
+t_error_socket_closed_while_waiting_for_select_db_response_eredis_sub(Config)
+  when is_list(Config) ->
+    t_error_socket_closed_while_waiting_for_select_db_response(eredis_sub, Config).
+
+t_error_socket_closed_while_waiting_for_select_db_response(Module, _Config) ->
     %% Simulate that Redis closes the connection after the SELECT
     %% command was sent.
     {ok, Pid, Port} = eredis_test_utils:start_server(
@@ -439,8 +594,10 @@ t_error_socket_closed_while_waiting_for_select_db_response(Config) when is_list(
                                 ok = gen_tcp:close(ClientSocket)
                         end),
     process_flag(trap_exit, true),
-    Res = eredis:start_link("127.0.0.1", Port, [{database, 2},
-                                                {reconnect_sleep, no_reconnect}]),
+    Res = Module:start_link([{host, "127.0.0.1"},
+                             {port, Port},
+                             {database, 2},
+                             {reconnect_sleep, no_reconnect}]),
     ?assertMatch({error, {select_error, closed}}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 2000 -> still_alive end,
@@ -481,12 +638,18 @@ send_data_loop(Socket) ->
     end.
 
 t_ignore_old_socket(Config) when is_list(Config) ->
+    t_ignore_old_socket(eredis, Config).
+
+t_ignore_old_socket_eredis_sub(Config) when is_list(Config) ->
+    t_ignore_old_socket(eredis_sub, Config).
+
+t_ignore_old_socket(Module, _Config) ->
     %% Verify that the client ignores messages and errors for a
     %% previously used socket and keeps the current connection open.
     %% The events are simulated by sending similar messages the
     %% client process would receive as a socket owner process
     %% when these events occurred.
-    {ok, C} = eredis:start_link("127.0.0.1", ?PORT, []),
+    {ok, C} = Module:start_link([{host, "127.0.0.1"}, {port, ?PORT}]),
     [Socket] = get_tcp_ports(C),
     C ! {tcp, old_socket, data}, %% Incoming data event
     timer:sleep(200),
@@ -554,8 +717,10 @@ c() ->
     {ok, C} = Res,
     C.
 
-c_no_reconnect() ->
-    Res = eredis:start_link("127.0.0.1", ?PORT, [{reconnect_sleep, no_reconnect}]),
+c_no_reconnect(Module) ->
+    Res = Module:start_link([{host, "127.0.0.1"},
+                             {port, ?PORT},
+                             {reconnect_sleep, no_reconnect}]),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     C.

@@ -8,6 +8,7 @@
         ]).
 %% Test cases
 -export([ t_tls_connect/1
+        , t_tls_connect_eredis_sub/1
         , t_tls_get_set/1
         , t_tls_closed/1
         , t_tls_connect_database/1
@@ -35,7 +36,7 @@ init_per_suite(Config) ->
 end_per_suite(_Config) ->
     ok.
 
-all() -> [F || {F, _A} <- module_info(exports),
+all() -> [F || {F, 1} <- module_info(exports),
                case atom_to_list(F) of
                    "t_" ++ _ -> true;
                    _         -> false
@@ -54,6 +55,20 @@ t_tls_connect(Config) when is_list(Config) ->
     process_flag(trap_exit, false),
     ?assertEqual(died, IsDead),
     ?assertExit({noproc, _}, eredis:q(C, ["SET", foo, bar])).
+
+t_tls_connect_eredis_sub(Config) when is_list(Config) ->
+    Res = eredis_sub:start_link([{host, "127.0.0.1"},
+                                 {port, ?TLS_PORT},
+                                 {tls, tls_options("tls")}]),
+    ?assertMatch({ok, _}, Res),
+    {ok, Pid} = Res,
+    process_flag(trap_exit, true),
+    ?assertMatch(ok, eredis_sub:stop(Pid)),
+    IsDead = receive {'EXIT', _, _} -> died
+             after 1000 -> still_alive
+             end,
+    process_flag(trap_exit, false),
+    ?assertEqual(died, IsDead).
 
 t_tls_get_set(Config) when is_list(Config) ->
     C = c_tls(),
@@ -179,16 +194,19 @@ c_tls(ExtraOptions, CertDir) ->
     c_tls(ExtraOptions, CertDir, []).
 
 c_tls(ExtraOptions, CertDir, ExtraTlSOptions) ->
-    Dir = filename:join([code:priv_dir(eredis), "configs", CertDir]),
-    Options = [{tls, [{cacertfile, filename:join([Dir, "ca.crt"])},
-                      {certfile,   filename:join([Dir, "client.crt"])},
-                      {keyfile,    filename:join([Dir, "client.key"])},
-                      {verify,                 verify_peer},
-                      {server_name_indication, "Server"}] ++ ExtraTlSOptions}],
+    Options = [{tls, tls_options(CertDir) ++ ExtraTlSOptions}],
     Res = eredis:start_link("127.0.0.1", ?TLS_PORT, Options ++ ExtraOptions),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     C.
+
+tls_options(CertDir) ->
+    Dir = filename:join([code:priv_dir(eredis), "configs", CertDir]),
+    [{cacertfile, filename:join([Dir, "ca.crt"])},
+     {certfile,   filename:join([Dir, "client.crt"])},
+     {keyfile,    filename:join([Dir, "client.key"])},
+     {verify,                 verify_peer},
+     {server_name_indication, "Server"}].
 
 tls_closed_rig(C) ->
     %% fire async requests to add to redis client queue and then trick
