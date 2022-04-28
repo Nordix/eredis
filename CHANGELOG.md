@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## v1.5.0
+
+Not yet released.
+
+* eredis_sub: Automatic re-subscribe on reconnect. Messages on the
+  form `{subscribed, Channel, Pid}` are sent to the controlling
+  process in this case and need to be acked.
+
+* eredis_sub: TLS, custom TCP options, AUTH with username, SELECT
+  database and registered name options added.
+
 ## v1.4.1
 
 June 2021.

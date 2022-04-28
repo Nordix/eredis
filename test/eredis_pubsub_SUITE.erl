@@ -232,7 +232,7 @@ t_reconnect_resubscribe(Config) when is_list(Config) ->
     ?assertEqual({subscribed, <<"pat1*">>, Sub}, wait_for_msg(S)),
     ?assertEqual({subscribed, <<"pat2*">>, Sub}, wait_for_msg(S)),
 
-    %% Test publish and recieve message.
+    %% Test publish and receive message.
     eredis:q(Pub, ["PUBLISH", "chan1", "hello"]),
     eredis:q(Pub, ["PUBLISH", "pat2-banana", "world"]),
     ?assertEqual({message, <<"chan1">>, <<"hello">>, Sub},

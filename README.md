@@ -201,9 +201,9 @@ immediately with `{connection_error, Reason}`.
 ## Pubsub
 
 Thanks to Dave Peticolas (jdavisp3), eredis supports
-pubsub. `[eredis_sub](doc/eredis_sub.md)` offers a separate client that will forward
+pubsub. [`eredis_sub`](doc/eredis_sub.md) offers a separate client that will forward
 channel messages from Redis to an Erlang process in a "active-once"
-pattern similar to gen_tcp sockets. After every message sent, the
+pattern similar to gen_tcp sockets. After every message received, the
 controlling process must acknowledge receipt using
 `eredis_sub:ack_message/1`.
 
@@ -215,15 +215,53 @@ drop messages or crash, also based on configuration.
 Subscriptions are managed using `eredis_sub:subscribe/2` and
 `eredis_sub:unsubscribe/2`. When Redis acknowledges the change in
 subscription, a message is sent to the controlling process for each
-channel.
+channel. Then, eredis sends a message on the form `{subscribed, Channel,
+ClientPid}` to the controlling process, which must be acked using
+`eredis_sub:ack_message/1`.
 
 eredis also supports Pattern Subscribe using `eredis_sub:psubscribe/2`
-and `eredis_sub:unsubscribe/2`. As with normal subscriptions, a message
-is sent to the controlling process for each channel.
+and `eredis_sub:punsubscribe/2`. As with normal subscriptions, a message
+is sent to the controlling process for each channel and eredis sends a
+message on the form `{subscribed, Channel, ClientPid}` to the
+controlling process, which must be acked using `eredis_sub:ack_message/1`.
 
-As of v1.0.7 the controlling process will be notified in case of
-reconnection attempts or failures. See `test/eredis_sub_tests` for
-details.
+The controlling process is also notified in case of reconnection attempts or
+failures. See `test/eredis_pubsub_SUITE.erl` for examples.
+
+Starting with version 1.5, eredis automatically resubscribes after reconnect.
+Then, the controlling process will receive `{subscribed, Channel, ClientPid}`
+messages again for every channel and pattern subscribed to. These must also be
+acked.
+
+Here is a list of all the messages that are sent to the controlling process.
+Some messages don't need to be acked, but it does not harm doing so.
+
+* `{eredis_connected, Pid}` when the socket to Redis is established
+  and authenticated. Doesn't need to be acked.
+
+* `{eredis_disconnected, Pid}` when the connection to Redis has been lost.
+  Doesn't need to be acked.
+
+* `{eredis_reconnect_attempt, Pid}` at every reconnect attempt, when the
+  connection to Redis has been lost. Doesn't need to be acked.
+
+* `{eredis_reconnect_failed, Pid, {error, {connection_error, Reason}}}` after
+  every failed reconnect attempt. Doesn't need to be acked.
+
+* `{message, Channel, Message, Pid}` for every incoming message on subscribed
+  channels. Needs to be acked using `eredis_sub:ack_message/1`.
+
+* `{pmessage, Pattern, Channel, Message, Pid}` for every incoming message on
+  channels subscribed to by pattern, using using `eredis_sub:psubscribe/2`.
+  Needs to be acked using `eredis_sub:ack_message/1`.
+
+* `{subscribed, Channel, Pid}` when a subscription has been confirmed by Redis.
+  Channel is either a channel (subscribe) or a pattern (psubscribe). Needs to be
+  acked using `eredis_sub:ack_message/1`.
+
+* `{unsubscribed, Channel, Pid}` when a subscription has been removed from
+  Redis. Channel is either a channel (unsubscribe) or a pattern (punsubscribe).
+  Needs to be acked using `eredis_sub:ack_message/1`.
 
 ## AUTH and SELECT
 
