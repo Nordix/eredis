@@ -14,6 +14,7 @@
 
           %% Channels we should subscribe to
           channels = [] :: [channel()],
+          pchannels = [] :: [channel()], % psubscribe
 
           %% The process we send pubsub and connection state messages to.
           controlling_process :: undefined | {reference(), pid()},

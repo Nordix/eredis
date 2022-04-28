@@ -74,6 +74,7 @@ init(Options) ->
                    tls_options     = TlsOptions,
                    transport       = Transport,
                    channels        = [],
+                   pchannels       = [],
                    parser_state    = eredis_parser:init(),
                    msg_queue       = queue:new(),
                    max_queue_size  = MaxQueueSize,
@@ -103,7 +104,7 @@ handle_call({controlling_process, Pid}, _From, State) ->
     {reply, ok, State#state{controlling_process={Ref, Pid}, msg_state = ready}};
 
 handle_call(get_channels, _From, State) ->
-    {reply, {ok, State#state.channels}, State};
+    {reply, {ok, State#state.channels ++ State#state.pchannels}, State};
 
 
 handle_call(stop, _From, State) ->
@@ -148,8 +149,8 @@ handle_cast({psubscribe, Pid, Channels},
                    controlling_process = {_, Pid}} = State) ->
     Command = eredis:create_multibulk(["PSUBSCRIBE" | Channels]),
     ok = Transport:send(State#state.socket, Command),
-    NewChannels = add_channels(Channels, State#state.channels),
-    {noreply, State#state{channels = NewChannels}};
+    NewChannels = add_channels(Channels, State#state.pchannels),
+    {noreply, State#state{pchannels = NewChannels}};
 
 
 
@@ -168,8 +169,8 @@ handle_cast({punsubscribe, Pid, Channels},
                    controlling_process = {_, Pid}} = State) ->
     Command = eredis:create_multibulk(["PUNSUBSCRIBE" | Channels]),
     ok = Transport:send(State#state.socket, Command),
-    NewChannels = remove_channels(Channels, State#state.channels),
-    {noreply, State#state{channels = NewChannels}};
+    NewChannels = remove_channels(Channels, State#state.pchannels),
+    {noreply, State#state{pchannels = NewChannels}};
 
 
 
@@ -239,6 +240,23 @@ handle_info({reconnect_failed, Reason}, State) ->
 handle_info({connection_ready, Socket},
             #state{socket = undefined, transport = Transport} = State) ->
     send_to_controller({eredis_connected, self()}, State),
+    %% Re-subscribe to channels. Channels are stored in reverse order in state.
+    case State#state.channels of
+        [] ->
+            ok;
+        Channels ->
+            SubscribeCmd = eredis:create_multibulk(["SUBSCRIBE" |
+                                                    lists:reverse(Channels)]),
+            ok = Transport:send(Socket, SubscribeCmd)
+    end,
+    case State#state.pchannels of
+        [] ->
+            ok;
+        PChannels ->
+            PSubscribeCmd = eredis:create_multibulk(["PSUBSCRIBE" |
+                                                     lists:reverse(PChannels)]),
+            ok = Transport:send(Socket, PSubscribeCmd)
+    end,
     ok = setopts(Socket, Transport, [{active, once}]),
     {noreply, State#state{socket = Socket}};
 

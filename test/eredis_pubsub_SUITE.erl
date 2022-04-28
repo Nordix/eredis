@@ -16,6 +16,7 @@
         , t_crash_queue/1
         , t_dynamic_channels/1
         , t_pubsub_pattern/1
+        , t_reconnect_resubscribe/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -207,6 +208,37 @@ t_pubsub_pattern(Config) when is_list(Config) ->
             ok
     end,
 
+    eredis_sub:stop(Sub).
+
+t_reconnect_resubscribe(Config) when is_list(Config) ->
+    Pub = c(),
+    Sub = s(),
+    add_channels(Sub, [<<"chan1">>, <<"chan2">>]),
+    add_channels_pattern(Sub, [<<"pat1*">>, <<"pat2*">>]),
+    S = subscriber(Sub),
+    ok = eredis_sub:controlling_process(Sub, S),
+
+    %% Simulate connection closed by server.
+    #state{socket = Sock} = get_state(Sub),
+    gen_tcp:close(Sock),
+    Sub ! {tcp_closed, Sock},
+    ?assertEqual({eredis_disconnected, Sub}, wait_for_msg(S)),
+    ?assertEqual({eredis_reconnect_attempt, Sub}, wait_for_msg(S)),
+    ?assertEqual({eredis_connected, Sub}, wait_for_msg(S)),
+
+    %% Resubscribe notification for every channel after reconnect.
+    ?assertEqual({subscribed, <<"chan1">>, Sub}, wait_for_msg(S)),
+    ?assertEqual({subscribed, <<"chan2">>, Sub}, wait_for_msg(S)),
+    ?assertEqual({subscribed, <<"pat1*">>, Sub}, wait_for_msg(S)),
+    ?assertEqual({subscribed, <<"pat2*">>, Sub}, wait_for_msg(S)),
+
+    %% Test publish and recieve message.
+    eredis:q(Pub, ["PUBLISH", "chan1", "hello"]),
+    eredis:q(Pub, ["PUBLISH", "pat2-banana", "world"]),
+    ?assertEqual({message, <<"chan1">>, <<"hello">>, Sub},
+                 wait_for_msg(S)),
+    ?assertEqual({pmessage, <<"pat2*">>, <<"pat2-banana">>, <<"world">>, Sub},
+                 wait_for_msg(S)),
     eredis_sub:stop(Sub).
 
 %%
