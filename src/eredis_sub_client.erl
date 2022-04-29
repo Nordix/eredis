@@ -137,18 +137,18 @@ handle_cast({ack_message, Pid},
 
 handle_cast({subscribe, Pid, Channels},
             #state{transport = Transport,
+                   socket = Socket,
                    controlling_process = {_, Pid}} = State) ->
-    Command = eredis:create_multibulk(["SUBSCRIBE" | Channels]),
-    ok = Transport:send(State#state.socket, Command),
+    ok = send_subscribe_command(Transport, Socket, "SUBSCRIBE", Channels),
     NewChannels = add_channels(Channels, State#state.channels),
     {noreply, State#state{channels = NewChannels}};
 
 
 handle_cast({psubscribe, Pid, Channels},
             #state{transport = Transport,
+                   socket = Socket,
                    controlling_process = {_, Pid}} = State) ->
-    Command = eredis:create_multibulk(["PSUBSCRIBE" | Channels]),
-    ok = Transport:send(State#state.socket, Command),
+    ok = send_subscribe_command(Transport, Socket, "PSUBSCRIBE", Channels),
     NewChannels = add_channels(Channels, State#state.pchannels),
     {noreply, State#state{pchannels = NewChannels}};
 
@@ -241,22 +241,10 @@ handle_info({connection_ready, Socket},
             #state{socket = undefined, transport = Transport} = State) ->
     send_to_controller({eredis_connected, self()}, State),
     %% Re-subscribe to channels. Channels are stored in reverse order in state.
-    case State#state.channels of
-        [] ->
-            ok;
-        Channels ->
-            SubscribeCmd = eredis:create_multibulk(["SUBSCRIBE" |
-                                                    lists:reverse(Channels)]),
-            ok = Transport:send(Socket, SubscribeCmd)
-    end,
-    case State#state.pchannels of
-        [] ->
-            ok;
-        PChannels ->
-            PSubscribeCmd = eredis:create_multibulk(["PSUBSCRIBE" |
-                                                     lists:reverse(PChannels)]),
-            ok = Transport:send(Socket, PSubscribeCmd)
-    end,
+    ok = send_subscribe_command(Transport, Socket, "SUBSCRIBE",
+                                lists:reverse(State#state.channels)),
+    ok = send_subscribe_command(Transport, Socket, "PSUBSCRIBE",
+                                lists:reverse(State#state.pchannels)),
     ok = setopts(Socket, Transport, [{active, once}]),
     {noreply, State#state{socket = Socket}};
 
@@ -306,6 +294,17 @@ add_channels(Channels, OldChannels) ->
                 [C|Cs]
         end
     end, OldChannels, Channels).
+
+%% @doc Sends a subscribe or psubscribe command to Redis.
+-spec send_subscribe_command(Transport :: gen_tcp | ssl,
+                             Socket :: gen_tcp:socket() | ssl:socket(),
+                             Command :: iodata(),
+                             Channels :: list()) -> ok.
+send_subscribe_command(_Transport, _Socket, _Command, []) ->
+    ok;
+send_subscribe_command(Transport, Socket, Command, Channels) ->
+    Cmd = eredis:create_multibulk([Command | Channels]),
+    Transport:send(Socket, Cmd).
 
 -spec handle_response(Data::binary(), State::#state{}) -> NewState::#state{}.
 %% @doc: Handle the response coming from Redis. This should only be
