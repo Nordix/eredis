@@ -172,11 +172,17 @@ t_dynamic_channels(Config) when is_list(Config) ->
     eredis:q(Pub, [publish, otherchan, foo]),
     ?assertEqual([{message, <<"otherchan">>, <<"foo">>, Sub}], recv_all(Sub)),
 
+    %% Unsubscribe one.
     eredis_sub:unsubscribe(Sub, [<<"otherchan">>]),
-    eredis_sub:ack_message(Sub),
     receive M3 -> ?assertEqual({unsubscribed, <<"otherchan">>, Sub}, M3) end,
+    eredis_sub:ack_message(Sub),
+    ?assertEqual({ok, [<<"newchan">>]}, eredis_sub:channels(Sub)),
 
-    ?assertEqual({ok, [<<"newchan">>]}, eredis_sub:channels(Sub)).
+    %% Unsubscribe all.
+    eredis_sub:unsubscribe(Sub, []),
+    receive M4 -> ?assertEqual({unsubscribed, <<"newchan">>, Sub}, M4) end,
+    eredis_sub:ack_message(Sub),
+    ?assertEqual({ok, []}, eredis_sub:channels(Sub)).
 
 % Tests for Pattern Subscribe
 t_pubsub_pattern(Config) when is_list(Config) ->

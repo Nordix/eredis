@@ -288,7 +288,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+%% @doc When no channels are given, we unsubscribe from all channels. This
+%% matches the semantics of (P)UNSUBSCRIBE without channels.
 -spec remove_channels([binary()], [binary()]) -> [binary()].
+remove_channels([], _OldChannels) ->
+    [];
 remove_channels(Channels, OldChannels) ->
     lists:foldl(fun lists:delete/2, OldChannels, Channels).
 
