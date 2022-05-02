@@ -423,7 +423,7 @@ t_tcp_closed(Config) when is_list(Config) ->
     {ok, C} = eredis:start_link([{reconnect_sleep, 10000}]),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     tcp_closed_rig(C),
-    timer:sleep(100), % Instant reconnect. No sleep before the first attemt.
+    timer:sleep(100), % Instant reconnect. No sleep before the first attempt.
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     ?assertMatch(ok, eredis:stop(C)).
 
