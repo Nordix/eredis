@@ -2,7 +2,9 @@
 
 ## v1.5.0
 
-Not yet released.
+May 2022.
+
+* No delay before the first reconnect attempt.
 
 * eredis_sub: Automatic re-subscribe on reconnect. Messages on the
   form `{subscribed, Channel, Pid}` are sent to the controlling

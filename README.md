@@ -1,4 +1,4 @@
-# eredis (Nordix fork)
+# eredis
 
 Non-blocking Redis client with focus on performance and robustness.
 
@@ -6,9 +6,15 @@ Non-blocking Redis client with focus on performance and robustness.
 [![Hex pm](https://img.shields.io/hexpm/v/eredis.svg?style=flat)](https://hex.pm/packages/eredis)
 [![Hex.pm](https://img.shields.io/hexpm/dt/eredis.svg)](https://hex.pm/packages/eredis)
 
-Improvements and changes in this fork compared to `wooga/eredis` includes
+This fork is the official continuation of `wooga/eredis`.
+It includes several improvements, such as
 TLS support and TCP error handling corrections. See [CHANGELOG.md](CHANGELOG.md)
 for details.
+
+Note: This client connects to a standalone Redis node.
+For *Redis Cluster*, you need
+[eredis_cluster](https://github.com/Nordix/eredis_cluster) or
+[ecredis](https://github.com/HalloAppInc/ecredis).
 
 Supported Redis features:
 
