@@ -217,13 +217,22 @@ handle_info({connection_ready, Socket}, #state{socket = undefined} = State) ->
 handle_info(stop, State) ->
     {stop, shutdown, State};
 
-handle_info(initiate_connection, #state{socket = undefined} = State) ->
+handle_info(initiate_connection,
+            #state{socket = undefined,
+                   reconnect_sleep = ReconnectSleep} = State) ->
     case connect(State) of
         {ok, NewState} ->
             {noreply, NewState};
+        {error, _Reason} when ReconnectSleep =:= no_reconnect ->
+            {stop, normal, State};
         {error, Reason} ->
-            maybe_reconnect(Reason, State)
+            erlang:send_after(ReconnectSleep, self(), {reconnect, Reason}),
+            {noreply, State}
     end;
+
+handle_info({reconnect, Reason}, #state{socket = undefined} = State) ->
+    %% Scheduled reconnect
+    maybe_reconnect(Reason, State);
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -559,21 +568,21 @@ maybe_reconnect(Reason,
 %% `{connection_ready, Socket}'.
 reconnect_loop(Client, ReconnectSleep, Host, Port, SocketOptions,
                TlsOptions, ConnectTimeout, AuthCmd, Db) ->
-    receive
-        {'EXIT', Client, Reason} -> exit(Reason)
-    after
-        ReconnectSleep ->
-            Client ! reconnect_attempt,
-            case connect(Host, Port, SocketOptions, TlsOptions, ConnectTimeout,
-                         AuthCmd, Db) of
-                {ok, Socket} ->
-                    Client ! {connection_ready, Socket},
-                    Transport = transport_module(TlsOptions),
-                    Transport:controlling_process(Socket, Client),
-                    Msgs = get_all_messages([]),
-                    [Client ! M || M <- Msgs];
-                {error, Reason} ->
-                    Client ! {reconnect_failed, Reason},
+    Client ! reconnect_attempt,
+    case connect(Host, Port, SocketOptions, TlsOptions, ConnectTimeout,
+                 AuthCmd, Db) of
+        {ok, Socket} ->
+            Client ! {connection_ready, Socket},
+            Transport = transport_module(TlsOptions),
+            Transport:controlling_process(Socket, Client),
+            Msgs = get_all_messages([]),
+            [Client ! M || M <- Msgs];
+        {error, Reason} ->
+            Client ! {reconnect_failed, Reason},
+            receive
+                {'EXIT', Client, Reason} -> exit(Reason)
+            after
+                ReconnectSleep ->
                     reconnect_loop(Client, ReconnectSleep, Host, Port,
                                    SocketOptions, TlsOptions, ConnectTimeout,
                                    AuthCmd, Db)

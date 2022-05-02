@@ -420,10 +420,10 @@ t_unknown_client_cast(Config) when is_list(Config) ->
     ?assertMatch(ok, eredis:stop(C)).
 
 t_tcp_closed(Config) when is_list(Config) ->
-    C = c(),
+    {ok, C} = eredis:start_link([{reconnect_sleep, 10000}]),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     tcp_closed_rig(C),
-    timer:sleep(200), %% Wait for reconnection (after ~100ms)
+    timer:sleep(100), % Instant reconnect. No sleep before the first attemt.
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
     ?assertMatch(ok, eredis:stop(C)).
 

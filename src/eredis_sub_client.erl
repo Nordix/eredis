@@ -215,13 +215,22 @@ handle_info({Closed, Socket}, #state{socket = OurSocket} = State)
        Socket =:= OurSocket orelse Socket =:= fake_socket ->
     maybe_reconnect(Closed, State);
 
-handle_info(initiate_connection, #state{socket = undefined} = State) ->
+handle_info(initiate_connection,
+            #state{socket = undefined,
+                   reconnect_sleep = ReconnectSleep} = State) ->
     case connect(State) of
         {ok, NewState} ->
             {noreply, NewState};
+        {error, _Reason} when ReconnectSleep =:= no_reconnect ->
+            {stop, normal, State};
         {error, Reason} ->
-            maybe_reconnect(Reason, State)
+            erlang:send_after(ReconnectSleep, self(), {reconnect, Reason}),
+            {noreply, State}
     end;
+
+handle_info({reconnect, Reason}, #state{socket = undefined} = State) ->
+    %% Scheduled reconnect
+    maybe_reconnect(Reason, State);
 
 %% Controller might want to be notified about every reconnect attempt
 handle_info(reconnect_attempt, State) ->
