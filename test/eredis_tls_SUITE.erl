@@ -125,7 +125,8 @@ t_tls_1_3_cert_expired(Config) when is_list(Config) ->
 
 t_soon_expiring_cert(Config) when is_list(Config) ->
     Dir = filename:join([code:priv_dir(eredis), "configs", "tls_soon_expired_client_certs"]),
-    Options = [{tls, [{cacertfile, filename:join([Dir, "ca.crt"])},
+    Options = [{reconnect_sleep, 2000},
+               {tls, [{cacertfile, filename:join([Dir, "ca.crt"])},
                       {certfile,   filename:join([Dir, "client.crt"])},
                       {keyfile,    filename:join([Dir, "client.key"])},
                       {verify,     verify_peer},
@@ -155,9 +156,10 @@ t_soon_expiring_cert(Config) when is_list(Config) ->
     ct:pal(user, "Stopping client"),
     ?assertMatch(ok, eredis:stop(C)),
 
-    %% Reconnect, will give ok during connect+handshake
-    %% but trigger a ssl_error that makes the client try reconnect
-    ct:pal("Reconnect, now with expired certificate..."),
+    %% Connecting with an expired certificate works fine during the
+    %% connect and handshake, but triggers a ssl_error message that
+    %% makes the client perform a reconnect.
+    ct:pal("Connect with an expired certificate..."),
     Res2 = eredis:start_link("127.0.0.1", ?TLS_PORT, Options),
     ?assertMatch({ok, _}, Res2),
     {ok, C2} = Res2,
