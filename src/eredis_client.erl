@@ -580,7 +580,7 @@ reconnect_loop(Client, ReconnectSleep, Host, Port, SocketOptions,
         {error, Reason} ->
             Client ! {reconnect_failed, Reason},
             receive
-                {'EXIT', Client, Reason2} -> exit(Reason2)
+                {'EXIT', Client, ExitReason} -> exit(ExitReason)
             after
                 ReconnectSleep ->
                     reconnect_loop(Client, ReconnectSleep, Host, Port,
