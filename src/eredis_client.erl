@@ -36,7 +36,7 @@
          terminate/2, code_change/3]).
 
 %% Used by eredis_sub_client.erl
--export([read_database/1, get_auth_command/2, connect/7, reconnect_loop/9]).
+-export([read_database/1, get_auth_command/2, connect/7]).
 
 -record(state, {
                 host            :: string() | {local, string()} | undefined,
@@ -50,6 +50,7 @@
 
                 transport       :: gen_tcp | ssl,
                 socket          :: gen_tcp:socket() | ssl:sslsocket() | undefined,
+                reconnect_timer :: reference() | undefined,
                 parser_state    :: #pstate{} | undefined,
                 queue           :: eredis_queue() | undefined
                }).
@@ -156,7 +157,6 @@ handle_info({Type, Socket, Data},
         ok ->
             {noreply, State};
         {error, Reason} ->
-            Transport:close(Socket),
             maybe_reconnect(Reason, State)
     end;
 
@@ -164,10 +164,8 @@ handle_info({Type, Socket, Data},
 %% always followed by a tcp_closed.
 %%
 %% TLS 1.3: Called after a connect when the client certificate has expired
-handle_info({Error, Socket, Reason},
-            #state{socket = Socket, transport = Transport} = State)
+handle_info({Error, Socket, Reason}, #state{socket = Socket} = State)
   when Error =:= tcp_error; Error =:= ssl_error ->
-    Transport:close(Socket),
     maybe_reconnect(Reason, State);
 
 %% Socket got closed, for example by Redis terminating idle
@@ -179,7 +177,7 @@ handle_info({Error, Socket, Reason},
 handle_info({Closed, Socket}, #state{socket = OurSocket} = State)
   when Closed =:= tcp_closed orelse Closed =:= ssl_closed,
        Socket =:= OurSocket orelse Socket =:= fake_socket ->
-    maybe_reconnect(Closed, State);
+    maybe_reconnect(Closed, State#state{socket = undefined});
 
 %% Ignore messages and errors for an old socket.
 handle_info({Type, Socket, _}, #state{socket = OurSocket} = State)
@@ -198,9 +196,7 @@ handle_info({Type, Socket}, #state{socket = OurSocket} = State)
 
 %% Errors returned by gen_tcp:send/2 and ssl:send/2 are handled
 %% asynchronously by message passing to self.
-handle_info({send_error, Socket, Reason},
-            #state{transport = Transport, socket = Socket} = State) ->
-    Transport:close(Socket),
+handle_info({send_error, Socket, Reason}, #state{socket = Socket} = State) ->
     maybe_reconnect(Reason, State);
 
 handle_info({send_error, _Socket, _Reason}, State) ->
@@ -217,22 +213,20 @@ handle_info({connection_ready, Socket}, #state{socket = undefined} = State) ->
 handle_info(stop, State) ->
     {stop, shutdown, State};
 
-handle_info(initiate_connection,
-            #state{socket = undefined,
-                   reconnect_sleep = ReconnectSleep} = State) ->
+handle_info(initiate_connection, #state{socket = undefined} = State) ->
     case connect(State) of
         {ok, NewState} ->
             {noreply, NewState};
-        {error, _Reason} when ReconnectSleep =:= no_reconnect ->
-            {stop, normal, State};
         {error, Reason} ->
-            erlang:send_after(ReconnectSleep, self(), {reconnect, Reason}),
-            {noreply, State}
+            {noreply, schedule_reconnect(Reason, State)}
     end;
 
 handle_info({reconnect, Reason}, #state{socket = undefined} = State) ->
-    %% Scheduled reconnect
-    maybe_reconnect(Reason, State);
+    %% Scheduled reconnect, if disconnected.
+    maybe_reconnect(Reason, State#state{reconnect_timer = undefined});
+handle_info({reconnect, _Reason}, State) ->
+    %% Already connected.
+    {noreply, State#state{reconnect_timer = undefined}};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -363,7 +357,9 @@ safe_send(Pid, Value) ->
     end.
 
 %% @doc: Helper for connecting to Redis, authenticating and selecting
-%% the correct database synchronously.
+%% the correct database synchronously. On successful connect, a reconnect
+%% is scheduled, just in case the connection breaks immediately afterwards,
+%% so we don't reconnect until reconnect_sleep milliseconds has elapsed.
 %% Returns: {ok, State} or {error, Reason}.
 connect(#state{host = Host,
                port = Port,
@@ -375,7 +371,11 @@ connect(#state{host = Host,
     case connect(Host, Port, SocketOptions, TlsOptions,
                  ConnectTimeout, AuthCmd, Db) of
         {ok, Socket} ->
-            {ok, State#state{socket = Socket}};
+            %% In case the connection terminates immediately (this happens with
+            %% an expired certificate with TLS 1.3) schedule a reconnect already
+            %% so that we don't try to reconnect if an error is received before
+            %% reconnect_sleep milliseconds has elapsed.
+            {ok, schedule_reconnect(unknown, State#state{socket = Socket})};
         Error ->
             Error
     end.
@@ -529,64 +529,53 @@ transport_module(_) -> ssl.
 setopts(Socket, _Transport=gen_tcp, Opts) -> inet:setopts(Socket, Opts);
 setopts(Socket, _Transport=ssl, Opts)     ->  ssl:setopts(Socket, Opts).
 
+close_socket(#state{socket = undefined} = State) ->
+    State;
+close_socket(#state{socket = Socket, transport = Transport} = State) ->
+    Transport:close(Socket),
+    State#state{socket = undefined}.
+
+%% @doc Schedules a reconnect attempt, if reconnect is enabled.
+-spec schedule_reconnect(Reason :: any(), #state{}) -> #state{}.
+schedule_reconnect(_Reason, #state{reconnect_sleep = no_reconnect} = State) ->
+    State;
+schedule_reconnect(Reason, #state{reconnect_sleep = ReconnectSleep,
+                                  reconnect_timer = undefined} = State) ->
+    TRef = erlang:send_after(ReconnectSleep, self(), {reconnect, Reason}),
+    State#state{reconnect_timer = TRef}.
+
+%% @doc Reconnects, but not if a reconnect has been scheduled or if reconnect is
+%% disabled. The socket in the state is closed, if any. Returns {noreply, State}
+%% or {stop, ExitReason, State} like handle_info.
 maybe_reconnect(Reason, #state{reconnect_sleep = no_reconnect, queue = Queue} = State) ->
     reply_all({error, Reason}, Queue),
     %% If we aren't going to reconnect, then there is nothing else for
     %% this process to do.
-    {stop, normal, State#state{socket = undefined}};
+    {stop, normal, close_socket(State)};
+maybe_reconnect(Reason, #state{queue = Queue, reconnect_timer = TRef} = State)
+  when is_reference(TRef) ->
+    %% Reconnect already scheduled.
+    reply_all({error, Reason}, Queue),
+    {noreply, close_socket(State#state{queue = queue:new()})};
 maybe_reconnect(Reason,
                 #state{queue = Queue,
                        host = Host,
                        port = Port,
-                       socket_options = SocketOptions,
-                       tls_options = TlsOptions,
-                       connect_timeout = ConnectTimeout,
-                       reconnect_sleep = ReconnectSleep,
-                       auth_cmd = AuthCmd,
-                       database = Db} = State) ->
+                       reconnect_timer = undefined} = State) ->
     error_logger:error_msg("eredis: Re-establishing connection to ~p:~p due to ~p",
                            [Host, Port, Reason]),
-    Self = self(),
-    spawn_link(fun() ->
-                       process_flag(trap_exit, true),
-                       reconnect_loop(Self, ReconnectSleep, Host, Port,
-                                      SocketOptions, TlsOptions, ConnectTimeout,
-                                      AuthCmd, Db)
-               end),
-
-    %% tell all of our clients what has happened.
+    %% Tell all of our clients what has happened.
     reply_all({error, Reason}, Queue),
 
     %% Throw away the socket and the queue, as we will never get a
     %% response to the requests sent on the old socket. The absence of
     %% a socket is used to signal we are "down"
-    {noreply, State#state{socket = undefined, queue = queue:new()}}.
-
-%% @doc: Loop until a connection can be established, this includes
-%% successfully issuing the auth and select calls. When we have a
-%% connection, send the socket to Client in a message on the form
-%% `{connection_ready, Socket}'.
-reconnect_loop(Client, ReconnectSleep, Host, Port, SocketOptions,
-               TlsOptions, ConnectTimeout, AuthCmd, Db) ->
-    Client ! reconnect_attempt,
-    case connect(Host, Port, SocketOptions, TlsOptions, ConnectTimeout,
-                 AuthCmd, Db) of
-        {ok, Socket} ->
-            Client ! {connection_ready, Socket},
-            Transport = transport_module(TlsOptions),
-            Transport:controlling_process(Socket, Client),
-            Msgs = get_all_messages([]),
-            [Client ! M || M <- Msgs];
+    State1 = close_socket(State#state{queue = queue:new()}),
+    case connect(State1) of
+        {ok, State2} ->
+            {noreply, State2};
         {error, Reason} ->
-            Client ! {reconnect_failed, Reason},
-            receive
-                {'EXIT', Client, Reason} -> exit(Reason)
-            after
-                ReconnectSleep ->
-                    reconnect_loop(Client, ReconnectSleep, Host, Port,
-                                   SocketOptions, TlsOptions, ConnectTimeout,
-                                   AuthCmd, Db)
-            end
+            {noreply, schedule_reconnect(Reason, State1)}
     end.
 
 read_database(undefined) ->
@@ -605,11 +594,3 @@ get_auth_command(undefined, Password) ->
     eredis:create_multibulk([<<"AUTH">>, Password]);
 get_auth_command(Username, Password) ->
     eredis:create_multibulk([<<"AUTH">>, Username, Password]).
-
-get_all_messages(Acc) ->
-    receive
-        M ->
-            get_all_messages([M | Acc])
-    after 0 ->
-            lists:reverse(Acc)
-    end.

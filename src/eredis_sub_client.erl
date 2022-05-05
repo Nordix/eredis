@@ -201,10 +201,8 @@ handle_info({Type, Socket, Bs},
             {noreply, NewState}
     end;
 
-handle_info({Error, Socket, _Reason},
-            #state{socket = Socket, transport = Transport} = State)
+handle_info({Error, Socket, _Reason}, #state{socket = Socket} = State)
   when Error =:= tcp_error; Error =:= ssl_error ->
-    Transport:close(Socket),
     maybe_reconnect(Error, State);
 
 %% Socket got closed, for example by Redis terminating idle
@@ -214,7 +212,8 @@ handle_info({Error, Socket, _Reason},
 handle_info({Closed, Socket}, #state{socket = OurSocket} = State)
   when Closed =:= tcp_closed orelse Closed =:= ssl_closed,
        Socket =:= OurSocket orelse Socket =:= fake_socket ->
-    maybe_reconnect(Closed, State);
+    send_to_controller({eredis_disconnected, self()}, State),
+    maybe_reconnect(Closed, State#state{socket = undefined});
 
 handle_info(initiate_connection,
             #state{socket = undefined,
@@ -222,41 +221,17 @@ handle_info(initiate_connection,
     case connect(State) of
         {ok, NewState} ->
             {noreply, NewState};
-        {error, _Reason} when ReconnectSleep =:= no_reconnect ->
-            {stop, normal, State};
         {error, Reason} ->
             erlang:send_after(ReconnectSleep, self(), {reconnect, Reason}),
             {noreply, State}
     end;
 
 handle_info({reconnect, Reason}, #state{socket = undefined} = State) ->
-    %% Scheduled reconnect
-    maybe_reconnect(Reason, State);
-
-%% Controller might want to be notified about every reconnect attempt
-handle_info(reconnect_attempt, State) ->
-    send_to_controller({eredis_reconnect_attempt, self()}, State),
-    {noreply, State};
-
-%% Controller might want to be notified about every reconnect failure and reason
-handle_info({reconnect_failed, Reason}, State) ->
-    send_to_controller({eredis_reconnect_failed, self(),
-                        {error, {connection_error, Reason}}}, State),
-    {noreply, State};
-
-%% Redis is ready to accept requests, the given Socket is a socket
-%% already connected and authenticated.
-handle_info({connection_ready, Socket},
-            #state{socket = undefined, transport = Transport} = State) ->
-    send_to_controller({eredis_connected, self()}, State),
-    %% Re-subscribe to channels. Channels are stored in reverse order in state.
-    ok = send_subscribe_command(Transport, Socket, "SUBSCRIBE",
-                                lists:reverse(State#state.channels)),
-    ok = send_subscribe_command(Transport, Socket, "PSUBSCRIBE",
-                                lists:reverse(State#state.pchannels)),
-    ok = setopts(Socket, Transport, [{active, once}]),
-    {noreply, State#state{socket = Socket}};
-
+    %% Scheduled reconnect, if disconnected.
+    maybe_reconnect(Reason, State#state{reconnect_timer = undefined});
+handle_info({reconnect, _Reason}, State) ->
+    %% Already connected.
+    {noreply, State#state{reconnect_timer = undefined}};
 
 %% Our controlling process is down.
 handle_info({'DOWN', Ref, process, Pid, _Reason},
@@ -379,42 +354,77 @@ queue_or_send(Msg, State) ->
 %% synchronous and if Redis returns something we don't expect, we
 %% crash. Returns {ok, State} or {error, Reason}.
 connect(#state{host = Host, port = Port, socket_options = SocketOptions,
+               transport = Transport,
                connect_timeout = ConnectTimeout, tls_options = TlsOptions,
                auth_cmd = AuthCmd, database = Db} = State) ->
     case eredis_client:connect(Host, Port, SocketOptions, TlsOptions,
                                ConnectTimeout, AuthCmd, Db) of
         {ok, Socket} ->
-            {ok, State#state{socket = Socket}};
+            %% Re-subscribe to channels. Channels are stored in reverse order in
+            %% state.
+            ok = send_subscribe_command(Transport, Socket, "SUBSCRIBE",
+                                        lists:reverse(State#state.channels)),
+            ok = send_subscribe_command(Transport, Socket, "PSUBSCRIBE",
+                                        lists:reverse(State#state.pchannels)),
+            ok = setopts(Socket, Transport, [{active, once}]),
+
+            %% Notify application that connection is ready.
+            send_to_controller({eredis_connected, self()}, State),
+
+            %% In case the connection terminates immediately (this happens with
+            %% an expired certificate with TLS 1.3) schedule a reconnect already
+            %% so that we don't try to reconnect if an error is received before
+            %% reconnect_sleep milliseconds has elapsed.
+            {ok, schedule_reconnect(unknown, State#state{socket = Socket})};
         Error ->
             Error
     end.
 
-%% Helper for handle_info/2. Returns {noreply, _} or {stop, _, _}.
-maybe_reconnect(_Reason, #state{reconnect_sleep = no_reconnect} = State) ->
-    %% If we aren't going to reconnect, then there is nothing else for this process to do.
-    {stop, normal, State#state{socket = undefined}};
-maybe_reconnect(_Reason,
-                #state{host = Host,
-                       port = Port,
-                       socket_options = SocketOptions,
-                       tls_options = TlsOptions,
-                       connect_timeout = ConnectTimeout,
-                       reconnect_sleep = ReconnectSleep,
-                       auth_cmd = AuthCmd,
-                       database = Db} = State) ->
-    Self = self(),
-    send_to_controller({eredis_disconnected, Self}, State),
-    spawn_link(fun() ->
-                       process_flag(trap_exit, true),
-                       eredis_client:reconnect_loop(Self, ReconnectSleep,
-                                                    Host, Port, SocketOptions,
-                                                    TlsOptions, ConnectTimeout,
-                                                    AuthCmd, Db)
-               end),
-
+close_socket(#state{socket = undefined} = State) ->
+    State;
+close_socket(#state{socket = Socket, transport = Transport} = State) ->
+    send_to_controller({eredis_disconnected, self()}, State),
+    Transport:close(Socket),
     %% Throw away the socket. The absence of a socket is used to
     %% signal we are "down"; discard possibly patrially parsed data
-    {noreply, State#state{socket = undefined, parser_state = eredis_parser:init()}}.
+    State#state{socket = undefined, parser_state = eredis_parser:init()}.
+
+%% @doc Schedules a reconnect attempt, if reconnect is enabled.
+-spec schedule_reconnect(Reason :: any(), #state{}) -> #state{}.
+schedule_reconnect(_Reason, #state{reconnect_sleep = no_reconnect} = State) ->
+    State;
+schedule_reconnect(Reason, #state{reconnect_sleep = ReconnectSleep,
+                                  reconnect_timer = undefined} = State) ->
+    TRef = erlang:send_after(ReconnectSleep, self(), {reconnect, Reason}),
+    State#state{reconnect_timer = TRef}.
+
+%% @doc Reconnects, but not if a reconnect has been scheduled or if reconnect is
+%% disabled. The socket in the state is closed, if any. Returns {noreply, State}
+%% or {stop, ExitReason, State} like handle_info.
+maybe_reconnect(_Reason, #state{reconnect_sleep = no_reconnect} = State) ->
+    %% If we aren't going to reconnect, then there is nothing else for this
+    %% process to do.
+    {stop, normal, close_socket(State)};
+maybe_reconnect(_Reason, #state{reconnect_timer = TRef} = State)
+  when is_reference(TRef) ->
+    %% Reconnect already scheduled.
+    {noreply, close_socket(State)};
+maybe_reconnect(_Reason, State) ->
+    State1 = close_socket(State),
+
+    %% Controller might want to be notified about every reconnect attempt
+    send_to_controller({eredis_reconnect_attempt, self()}, State1),
+
+    case connect(State1) of
+        {ok, State2} ->
+            {noreply, State2};
+        {error, Reason} ->
+            %% Controller might want to be notified about every reconnect
+            %% failure and reason
+            send_to_controller({eredis_reconnect_failed, self(),
+                                {error, {connection_error, Reason}}}, State1),
+            {noreply, schedule_reconnect(Reason, State1)}
+    end.
 
 setopts(Socket, _Transport=gen_tcp, Opts) -> inet:setopts(Socket, Opts);
 setopts(Socket, _Transport=ssl, Opts)     ->  ssl:setopts(Socket, Opts).

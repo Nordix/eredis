@@ -10,6 +10,7 @@
 
           transport :: gen_tcp | ssl,
           socket :: gen_tcp:socket() | ssl:sslsocket() | undefined,
+          reconnect_timer :: reference() | undefined,
           parser_state :: #pstate{} | undefined,
 
           %% Channels we should subscribe to
