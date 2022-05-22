@@ -574,8 +574,8 @@ maybe_reconnect(Reason,
     case connect(State1) of
         {ok, State2} ->
             {noreply, State2};
-        {error, Reason} ->
-            {noreply, schedule_reconnect(Reason, State1)}
+        {error, NewReason} ->
+            {noreply, schedule_reconnect(NewReason, State1)}
     end.
 
 read_database(undefined) ->
