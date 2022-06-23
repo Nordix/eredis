@@ -8,8 +8,10 @@
         ]).
 
 %% Test cases
--export([ t_connect/1
+-export([
+          t_connect/1
         , t_connect_eredis_sub/1
+        , t_connect_eredis_sentinel/1
         , t_connect_ipv6/1
         , t_connect_ipv6_eredis_sub/1
         , t_connect_hostname/1
@@ -17,7 +19,8 @@
         , t_connect_local/1
         , t_connect_local_eredis_sub/1
         , t_stop/1
-        , t_get_set/1
+        , t_get_set_eredis/1
+        , t_get_set_eredis_sentinel/1
         , t_set_get_term/1
         , t_delete/1
         , t_mset_mget/1
@@ -37,8 +40,10 @@
         , t_authentication_error_eredis_sub/1
         , t_connection_failure_during_start_no_reconnect/1
         , t_connection_failure_during_start_no_reconnect_eredis_sub/1
+        , t_connection_failure_during_start_no_reconnect_eredis_sentinel/1
         , t_connection_failure_during_start_reconnect/1
         , t_connection_failure_during_start_reconnect_eredis_sub/1
+        , t_connection_failure_during_start_reconnect_eredis_sentinel/1
         , t_unknown_client_call/1
         , t_unknown_client_cast/1
         , t_tcp_closed/1
@@ -71,6 +76,7 @@
 
 -define(PORT, 6379).
 -define(WRONG_PORT, 6378).
+-define(SENTINEL_PORT, 26379).
 
 init_per_suite(Config) ->
     Config.
@@ -114,6 +120,19 @@ t_connect_eredis_sub(Config) when is_list(Config) ->
                                             ])),
     ?assertMatch({ok, _}, eredis:start_link([])),
     ?assertMatch({ok, _}, eredis:start_link([{host, "127.0.0.1"}, {port, ?PORT}])).
+
+t_connect_eredis_sentinel(Config) when is_list(Config) ->
+    ?assertMatch({ok, _}, eredis:start_link([{host, "127.0.0.8"},
+                                             {port, ?WRONG_PORT},
+                                             {database, 0},
+                                             {password, ""},
+                                             {reconnect_sleep, 100},
+                                             {connect_timeout, 5000},
+                                             {socket_options, [{keepalive, true}]},
+                                             {sentinel, [{master_group, mymaster},
+                                                         {addresses, [{"127.0.0.1", ?SENTINEL_PORT}]}
+                                                        ]}
+                                            ])).
 
 t_connect_ipv6(Config) when is_list(Config) ->
     t_connect_ipv6(eredis, Config).
@@ -166,8 +185,13 @@ t_stop(Config) when is_list(Config) ->
     ?assertEqual(died, IsDead),
     ?assertExit({noproc, _}, eredis:q(C, ["SET", foo, bar])).
 
-t_get_set(Config) when is_list(Config) ->
-    C = c(),
+t_get_set_eredis(Config) when is_list(Config) ->
+    t_get_set(c(), Config).
+
+t_get_set_eredis_sentinel(Config) when is_list(Config) ->
+    t_get_set(c_sentinel(), Config).
+
+t_get_set(C, Config) when is_list(Config) ->
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 5000)),
 
     ?assertEqual({ok, undefined}, eredis:q(C, ["GET", foo])),
@@ -371,17 +395,21 @@ t_authentication_error(Module, _Config) ->
     ?assertEqual(died, IsDead).
 
 t_connection_failure_during_start_no_reconnect(Config) when is_list(Config) ->
-    t_connection_failure_during_start_no_reconnect(eredis, Config).
+    t_connection_failure_during_start_no_reconnect(eredis, undefined, Config).
 
 t_connection_failure_during_start_no_reconnect_eredis_sub(Config) ->
-    t_connection_failure_during_start_no_reconnect(eredis_sub, Config).
+    t_connection_failure_during_start_no_reconnect(eredis_sub, undefined, Config).
 
-t_connection_failure_during_start_no_reconnect(Module, _Config) ->
+t_connection_failure_during_start_no_reconnect_eredis_sentinel(Config) ->
+    t_connection_failure_during_start_no_reconnect(eredis, [{addresses, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]}], Config).
+
+t_connection_failure_during_start_no_reconnect(Module, SentinelOpts, _Config) ->
     process_flag(trap_exit, true),
     Res = Module:start_link([{host, "127.0.0.1"},
                              {port, ?WRONG_PORT},
                              {reconnect_sleep, no_reconnect},
-                             {connect_timeout, 1000}]),
+                             {connect_timeout, 1000},
+                             {sentinel, SentinelOpts}]),
     ?assertMatch({error, _}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
@@ -389,16 +417,20 @@ t_connection_failure_during_start_no_reconnect(Module, _Config) ->
     ?assertEqual(died, IsDead).
 
 t_connection_failure_during_start_reconnect(Config) when is_list(Config) ->
-    t_connection_failure_during_start_reconnect(eredis, Config).
+    t_connection_failure_during_start_reconnect(eredis, undefined, Config).
 
 t_connection_failure_during_start_reconnect_eredis_sub(Config) ->
-    t_connection_failure_during_start_reconnect(eredis_sub, Config).
+    t_connection_failure_during_start_reconnect(eredis_sub, undefined, Config).
 
-t_connection_failure_during_start_reconnect(Module, _Config) ->
+t_connection_failure_during_start_reconnect_eredis_sentinel(Config) when is_list(Config) ->
+    t_connection_failure_during_start_reconnect(eredis, [{addresses, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]}], Config).
+
+t_connection_failure_during_start_reconnect(Module, SentinelOpts, _Config) ->
     process_flag(trap_exit, true),
     Res = Module:start_link([{host, "127.0.0.1"},
                              {port, ?WRONG_PORT},
-                             {reconnect_sleep, 100}]),
+                             {reconnect_sleep, 100},
+                             {sentinel, SentinelOpts}]),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     IsDead = receive {'EXIT', C, _} -> died
@@ -714,6 +746,22 @@ gather_remote_queries([Pid | Rest], Acc) ->
 
 c() ->
     Res = eredis:start_link(),
+    ?assertMatch({ok, _}, Res),
+    {ok, C} = Res,
+    C.
+
+c_sentinel() ->
+    Res = eredis:start_link([{host, "127.0.0.8"},
+                             {port, ?WRONG_PORT},
+                             {database, 0},
+                             {password, ""},
+                             {reconnect_sleep, 100},
+                             {connect_timeout, 5000},
+                             {socket_options, [{keepalive, true}]},
+                             {sentinel, [{master_group, mymaster},
+                                         {addresses, [{"127.0.0.1", ?SENTINEL_PORT}]}
+                                        ]}
+                            ]),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     C.

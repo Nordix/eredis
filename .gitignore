@@ -23,3 +23,5 @@ doc/.build
 doc/dist
 deps/
 mix.lock
+
+.idea/
