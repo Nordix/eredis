@@ -1,17 +1,15 @@
 %% @private
 -module(eredis_sentinel).
-
 -behaviour(gen_server).
 -include("eredis.hrl").
 
 %% API
--export([start_link/1, stop/0, get_master/0]).
+-export([start_link/2, stop/1, get_master/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
--define(SERVER, ?MODULE).
 -define(CONNECT_TIMEOUT, 5000).
 -define(RECONNECT_SLEEP, 100).
 
@@ -44,16 +42,16 @@
 %%%===================================================================
 
 %% @doc Spawns the server and registers the local name (unique)
--spec(start_link(list()) ->
+-spec(start_link(atom(), list()) ->
              {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(Options) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, Options, []).
+start_link(Name, Options) ->
+    gen_server:start_link({local, Name}, ?MODULE, Options, []).
 
-stop() ->
-    gen_server:call(?MODULE, stop).
+stop(Pid) ->
+    gen_server:call(Pid, stop).
 
-get_master() ->
-    gen_server:call(?MODULE, get_master).
+get_master(Pid) ->
+    gen_server:call(Pid, get_master).
 
 %%%===================================================================
 %%% gen_server callbacks

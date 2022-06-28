@@ -238,11 +238,13 @@ terminate(_Reason, #state{socket = undefined, sentinel = undefined}) ->
     ok;
 terminate(_Reason, #state{socket = Socket, transport = Transport, sentinel = undefined}) ->
     Transport:close(Socket);
-terminate(_Reason, #state{socket = undefined}) ->
-    eredis_sentinel:stop();
-terminate(_Reason, #state{socket = Socket, transport = Transport}) ->
+terminate(_Reason, #state{socket = undefined, sentinel = SentinelOptions}) ->
+    MasterGroup = proplists:get_value(master_group, SentinelOptions, mymaster),
+    eredis_sentinel:stop(MasterGroup);
+terminate(_Reason, #state{socket = Socket, transport = Transport, sentinel = SentinelOptions}) ->
     Transport:close(Socket),
-    eredis_sentinel:stop().
+    MasterGroup = proplists:get_value(master_group, SentinelOptions, mymaster),
+    eredis_sentinel:stop(MasterGroup).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -380,11 +382,12 @@ connect(#state{host = Host0,
     MasterAddr = case SentinelOptions of
                      undefined -> {Host0, Port0};
                      _ ->
-                         case whereis(eredis_sentinel) of
-                             undefined -> eredis_sentinel:start_link(SentinelOptions);
+                         MasterGroup = proplists:get_value(master_group, SentinelOptions, mymaster),
+                         case whereis(MasterGroup) of
+                             undefined -> eredis_sentinel:start_link(MasterGroup, SentinelOptions);
                              _ -> ok
                          end,
-                         case eredis_sentinel:get_master() of
+                         case eredis_sentinel:get_master(MasterGroup) of
                              {ok, Host1, Port1} -> {Host1, Port1};
                              SentinelError -> SentinelError
                          end
