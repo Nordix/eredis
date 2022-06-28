@@ -122,7 +122,7 @@ handle_info({'EXIT', _Pid, _Reason}, S) ->
     {noreply, S};
 
 handle_info(_Info, State) ->
-    {stop, {unhandled_message, _Info}, State}.
+    {noreply, State}.
 
 %% @doc This function is called by a gen_server when it is about to
 %% terminate. It should be the opposite of Module:init/1 and do any
