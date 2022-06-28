@@ -9,7 +9,7 @@
 
 %% Test cases
 -export([
-          t_connect/1
+         t_connect/1
         , t_connect_eredis_sub/1
         , t_connect_eredis_sentinel/1
         , t_connect_ipv6/1
@@ -401,7 +401,8 @@ t_connection_failure_during_start_no_reconnect_eredis_sub(Config) ->
     t_connection_failure_during_start_no_reconnect(eredis_sub, undefined, Config).
 
 t_connection_failure_during_start_no_reconnect_eredis_sentinel(Config) ->
-    t_connection_failure_during_start_no_reconnect(eredis, [{addresses, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]}], Config).
+    SentinelOpts = [{addresses, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]}],
+    t_connection_failure_during_start_no_reconnect(eredis, SentinelOpts, Config).
 
 t_connection_failure_during_start_no_reconnect(Module, SentinelOpts, _Config) ->
     process_flag(trap_exit, true),
@@ -423,7 +424,8 @@ t_connection_failure_during_start_reconnect_eredis_sub(Config) ->
     t_connection_failure_during_start_reconnect(eredis_sub, undefined, Config).
 
 t_connection_failure_during_start_reconnect_eredis_sentinel(Config) when is_list(Config) ->
-    t_connection_failure_during_start_reconnect(eredis, [{addresses, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]}], Config).
+    SentinelOpts = [{addresses, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]}],
+    t_connection_failure_during_start_reconnect(eredis, SentinelOpts, Config).
 
 t_connection_failure_during_start_reconnect(Module, SentinelOpts, _Config) ->
     process_flag(trap_exit, true),
