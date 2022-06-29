@@ -234,17 +234,10 @@ handle_info({reconnect, _Reason}, State) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(_Reason, #state{socket = undefined, sentinel = undefined}) ->
+terminate(_Reason, #state{socket = undefined}) ->
     ok;
-terminate(_Reason, #state{socket = Socket, transport = Transport, sentinel = undefined}) ->
-    Transport:close(Socket);
-terminate(_Reason, #state{socket = undefined, sentinel = SentinelOptions}) ->
-    MasterGroup = proplists:get_value(master_group, SentinelOptions, mymaster),
-    eredis_sentinel:stop(MasterGroup);
-terminate(_Reason, #state{socket = Socket, transport = Transport, sentinel = SentinelOptions}) ->
-    Transport:close(Socket),
-    MasterGroup = proplists:get_value(master_group, SentinelOptions, mymaster),
-    eredis_sentinel:stop(MasterGroup).
+terminate(_Reason, #state{socket = Socket, transport = Transport}) ->
+    Transport:close(Socket).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.

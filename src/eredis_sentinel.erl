@@ -117,9 +117,8 @@ handle_cast(_Request, State = #eredis_sentinel_state{}) ->
 handle_info({'EXIT', Pid, _Reason}, #eredis_sentinel_state{conn_pid = Pid} = S) ->
     {noreply, S#eredis_sentinel_state{conn_pid = undefined}};
 
-%% Ignore late exit messages
 handle_info({'EXIT', _Pid, _Reason}, S) ->
-    {noreply, S};
+    {stop, normal, S};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -130,6 +129,8 @@ handle_info(_Info, State) ->
 %% with Reason. The return value is ignored.
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
                 State :: #eredis_sentinel_state{}) -> term()).
+terminate(_Reason, _State = #eredis_sentinel_state{conn_pid = undefined}) ->
+    ok;
 terminate(_Reason, _State = #eredis_sentinel_state{conn_pid = Pid}) ->
     eredis:stop(Pid),
     ok.
