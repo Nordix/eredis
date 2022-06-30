@@ -91,8 +91,8 @@ init(Options) ->
              {stop, Reason :: term(), NewState :: #eredis_sentinel_state{}}).
 handle_call(get_master, _From, State) ->
     case query_master(State#eredis_sentinel_state{errors = #errors{}}) of
-        {ok, {Host,Port}, S1} ->
-            {reply, {ok, Host,Port}, S1};
+        {ok, {Host, Port}, S1} ->
+            {reply, {ok, Host, Port}, S1};
         {error, Error, S1} ->
             {reply, {error, Error}, S1}
     end;
@@ -145,7 +145,6 @@ code_change(_OldVsn, State = #eredis_sentinel_state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-rotate([])     ->    [];
 rotate([X|Xs]) -> Xs ++ [X].
 
 %% Finding new master host for named cluster:
@@ -161,21 +160,21 @@ rotate([X|Xs]) -> Xs ++ [X].
           {ok, {string(), integer()}, #eredis_sentinel_state{}} | {error, any(), #eredis_sentinel_state{}}.
 
 %% All sentinels return errors
-query_master(#eredis_sentinel_state{errors = Errors,addresses = Sentinels} = S)
+query_master(#eredis_sentinel_state{errors = Errors, addresses = Sentinels} = S)
   when Errors#errors.total >= length(Sentinels) ->
     #errors{sentinel_unreachable=SU, master_unknown=MUK, master_unreachable=MUR} = Errors,
     if
         SU == length(Sentinels) ->
-            {error, ?SENTINEL_UNREACHABLE,S};
+            {error, ?SENTINEL_UNREACHABLE, S};
         MUK > 0, MUR == 0 ->
-            {error, ?MASTER_UNKNOWN,S};
+            {error, ?MASTER_UNKNOWN, S};
         true ->
-            {error, ?MASTER_UNREACHABLE,S}
+            {error, ?MASTER_UNREACHABLE, S}
     end;
 
 %% No connected sentinel
 query_master(#eredis_sentinel_state{conn_pid=undefined,
-                                    addresses = [{H,P} | _],
+                                    addresses = [{H, P} | _],
                                     username = Username,
                                     password = Password,
                                     connect_timeout = ConnectTimeout,
@@ -193,7 +192,7 @@ query_master(#eredis_sentinel_state{conn_pid=undefined,
         {ok, ConnPid} ->
             query_master(S#eredis_sentinel_state{conn_pid=ConnPid});
         {error, E} ->
-            error_logger:error_msg("Error connecting to sentinel at ~p:~p : ~p~n",[H,P,E]),
+            error_logger:error_msg("Error connecting to sentinel at ~p:~p : ~p~n", [H, P, E]),
             Errors = update_errors(?SENTINEL_UNREACHABLE, S#eredis_sentinel_state.errors),
             Sentinels = rotate(S#eredis_sentinel_state.addresses),
             query_master(S#eredis_sentinel_state{addresses = Sentinels, errors = Errors})
@@ -201,12 +200,12 @@ query_master(#eredis_sentinel_state{conn_pid=undefined,
 %% Sentinel connected
 query_master(#eredis_sentinel_state{conn_pid=ConnPid,
                                     master_group = MasterGroup,
-                                    addresses=[{H,P}|_]} = S) when is_pid(ConnPid)->
+                                    addresses=[{H, P}|_]} = S) when is_pid(ConnPid)->
     case query_master(ConnPid, MasterGroup) of
         {ok, HostPort} ->
             {ok, HostPort, S};
         {error, Error} ->
-            error_logger:error_msg("Master request for ~p to sentinel ~p:~p failed with ~p~n", [MasterGroup,H,P,Error]),
+            error_logger:error_msg("Master request for ~p to sentinel ~p:~p failed with ~p~n", [MasterGroup, H, P, Error]),
             eredis:stop(ConnPid),
             Errors = update_errors(Error, S#eredis_sentinel_state.errors),
             Sentinels = rotate(S#eredis_sentinel_state.addresses),
@@ -227,7 +226,7 @@ update_errors(E, #errors{sentinel_unreachable=SU, master_unknown=MUK, master_unr
 
 query_master(Pid, MasterGroup) ->
     Req = ["SENTINEL", "get-master-addr-by-name", atom_to_list(MasterGroup)],
-    try get_master_response(eredis:q(Pid,Req)) of
+    try get_master_response(eredis:q(Pid, Req)) of
         Result ->
             Result
     catch Type:Error ->

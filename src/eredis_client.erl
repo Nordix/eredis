@@ -47,7 +47,7 @@
                 connect_timeout :: integer() | undefined,
                 socket_options  :: list(),
                 tls_options     :: list(),
-                sentinel        :: list(),
+                sentinel        :: list() | undefined,
 
                 transport       :: gen_tcp | ssl,
                 socket          :: gen_tcp:socket() | ssl:sslsocket() | undefined,
