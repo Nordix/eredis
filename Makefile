@@ -20,7 +20,9 @@ ct: ct-tcp ct-tls
 
 ct-tcp:
 	-@docker rm -f redis
-	@docker run --name redis -d --net=host redis:$(REDIS_VERSION)
+	@docker run --name redis -d --net=host -v $(shell pwd)/priv/configs:/conf \
+	    redis:$(REDIS_VERSION)
+	@docker exec redis redis-sentinel /conf/redis_sentinel.conf
 	@rebar3 ct -v --cover_export_name ct-tcp \
 		--suite eredis_tcp_SUITE,eredis_pubsub_SUITE || { docker logs redis; exit 1; }
 	@docker rm -f redis
