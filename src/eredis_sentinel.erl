@@ -10,9 +10,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
--define(CONNECT_TIMEOUT, 5000).
--define(RECONNECT_SLEEP, 100).
-
 -record(errors, {
                  sentinel_unreachable = 0 :: integer(),
                  master_unknown = 0       :: integer(),
@@ -32,7 +29,8 @@
                                 errors          :: #errors{}
                                }).
 
-                                                % Sentinel errors
+-define(CONNECT_TIMEOUT, 5000).
+%́% Sentinel errors
 -define(SENTINEL_UNREACHABLE, sentinel_unreachable).
 -define(MASTER_UNKNOWN, master_unknown).
 -define(MASTER_UNREACHABLE, master_unreachable).

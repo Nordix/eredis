@@ -24,7 +24,7 @@ ct-tcp:
 	    redis:$(REDIS_VERSION)
 	@docker exec redis redis-sentinel /conf/redis_sentinel.conf
 	@rebar3 ct -v --cover_export_name ct-tcp \
-		--suite eredis_tcp_SUITE,eredis_pubsub_SUITE || { docker logs redis; exit 1; }
+		--suite eredis_tcp_SUITE,eredis_pubsub_SUITE,eredis_sentinel_SUITE || { docker logs redis; exit 1; }
 	@docker rm -f redis
 
 ct-tls:
