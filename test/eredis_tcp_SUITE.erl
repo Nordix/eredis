@@ -381,8 +381,7 @@ t_connection_failure_during_start_no_reconnect(Module, _Config) ->
     Res = Module:start_link([{host, "127.0.0.1"},
                              {port, ?WRONG_PORT},
                              {reconnect_sleep, no_reconnect},
-                             {connect_timeout, 1000}
-                            ]),
+                             {connect_timeout, 1000}]),
     ?assertMatch({error, _}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
@@ -399,8 +398,7 @@ t_connection_failure_during_start_reconnect(Module, _Config) ->
     process_flag(trap_exit, true),
     Res = Module:start_link([{host, "127.0.0.1"},
                              {port, ?WRONG_PORT},
-                             {reconnect_sleep, 100}
-                            ]),
+                             {reconnect_sleep, 100}]),
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     IsDead = receive {'EXIT', C, _} -> died
