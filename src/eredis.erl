@@ -64,7 +64,12 @@ start_link() ->
 %% such as `{local, atom()}'; for all options see `ServerName' at
 %% <a href="https://erlang.org/doc/man/gen_server.html#start_link-4">gen_server:start_link/4</a>;
 %% default: no name</dd>
-%% </dl>
+%% <dt>`{sentinel, SentinelOptions}'</dt><dd> Enables client for sentinel mode; options are required
+%% to connect to sentinel cluster; default: undefined </dd>
+%% <dd> Sentinel Options: `{master_group, master_group_name}' - Atom, default: mymaster;
+%% `{addresses, [{Host, Port}]}' - List of {Host, Port} tuples, default: [{"127.0.0.1", 26379}];
+%% `{username, Username}';`{password, Password}';`{connect_timeout, Timeout}';`{socket_options, SockOpts}'
+%% `{tls, TlsOpts}'</dd></dl>
 -spec start_link(options()) -> {ok, pid()} | {error, Reason::term()}.
 start_link(Options) ->
     eredis_client:start_link(Options).

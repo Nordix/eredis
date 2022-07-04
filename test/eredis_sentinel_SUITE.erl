@@ -27,6 +27,7 @@
 -define(WRONG_PORT, 6378).
 -define(SENTINEL_PORT, 26379).
 -define(WRONG_SENTINEL_ADDRESSES, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]).
+-define(SENTINEL_UNREACHABLE, sentinel_unreachable).
 
 init_per_suite(Config) ->
     Config.
@@ -45,34 +46,22 @@ suite() -> [{timetrap, {minutes, 1}}].
 %% Tests
 
 t_connect_with_default_opts(Config) when is_list(Config) ->
-    t_connect_eredis_sentinel([{sentinel, []}]).
+    connect_eredis_sentinel([{sentinel, []}]).
 
 t_connect_with_wrong_master_port(Config) when is_list(Config) ->
-    t_connect_eredis_sentinel([{port, ?WRONG_PORT}, {sentinel, []}]).
+    connect_eredis_sentinel([{port, ?WRONG_PORT}, {sentinel, []}]).
 
 t_connect_with_mix_sentinel_addresses(Config) when is_list(Config) ->
     SentinelAddr = ?WRONG_SENTINEL_ADDRESSES ++ [{"127.0.0.1", ?SENTINEL_PORT}],
-    t_connect_eredis_sentinel([{sentinel, [{addresses, SentinelAddr}]}]).
+    connect_eredis_sentinel([{sentinel, [{addresses, SentinelAddr}]}]).
 
 t_connect_with_explicit_options(Config) when is_list(Config) ->
-    t_connect_eredis_sentinel([{sentinel, [{master_group, mymaster},
+    connect_eredis_sentinel([{sentinel, [{master_group, mymaster},
                                            {addresses, [{"127.0.0.1", ?SENTINEL_PORT}]},
                                            {connect_timeout, 5000},
                                            {socket_options, [{keepalive, true}]},
                                            {password, ""}
                                           ]}]).
-
-t_connect_eredis_sentinel(Options) ->
-    process_flag(trap_exit, true),
-    Res = eredis:start_link(Options),
-    ?assertMatch({ok, _}, Res),
-    {ok, C} = Res,
-    ?assertMatch({ok, [<<"master">> | _]}, eredis:q(C, ["ROLE"])),
-    ?assertMatch(ok, eredis:stop(C)),
-    IsDead = receive {'EXIT', _Pid, _Reason} -> died
-             after 400 -> still_alive end,
-    process_flag(trap_exit, false),
-    ?assertEqual(died, IsDead).
 
 t_stop(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
@@ -91,7 +80,7 @@ t_connection_failure_during_start_no_reconnect(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     Res = eredis:start_link([{reconnect_sleep, no_reconnect},
                              {sentinel, SentinelOpts}]),
-    ?assertMatch({error, _}, Res),
+    ?assertMatch({error, ?SENTINEL_UNREACHABLE}, Res),
     IsDead = receive {'EXIT', _, _} -> died
              after 400 -> still_alive end,
     process_flag(trap_exit, false),
@@ -118,14 +107,14 @@ t_reconnect_success_on_sentinel_process_exit(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     C = c_sentinel(),
     timer:sleep(100),
-    ?assertMatch(true, is_process_alive(whereis(mymaster))),
+    ?assert(is_process_alive(whereis(mymaster))),
     erlang:exit(whereis(mymaster), abnormal),
     timer:sleep(100),
     ?assertMatch(undefined, whereis(mymaster)),
     {ok, C1} = eredis:start_link(),
     eredis:q(C1, ["CLIENT", "KILL", "TYPE", "NORMAL"]),
     timer:sleep(100),
-    ?assertMatch(true, is_process_alive(whereis(mymaster))),
+    ?assert(is_process_alive(whereis(mymaster))),
     ?assertMatch(ok, eredis:stop(C)),
     IsDead = receive {'EXIT', _Pid, _Reason} -> died
              after 400 -> still_alive end,
@@ -163,3 +152,15 @@ c_sentinel() ->
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     C.
+
+connect_eredis_sentinel(Options) ->
+    process_flag(trap_exit, true),
+    Res = eredis:start_link(Options),
+    ?assertMatch({ok, _}, Res),
+    {ok, C} = Res,
+    ?assertMatch({ok, [<<"master">> | _]}, eredis:q(C, ["ROLE"])),
+    ?assertMatch(ok, eredis:stop(C)),
+    IsDead = receive {'EXIT', _Pid, _Reason} -> died
+             after 400 -> still_alive end,
+    process_flag(trap_exit, false),
+    ?assertEqual(died, IsDead).

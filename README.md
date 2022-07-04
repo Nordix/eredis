@@ -11,7 +11,7 @@ It includes several improvements, such as
 TLS support and TCP error handling corrections. See [CHANGELOG.md](CHANGELOG.md)
 for details.
 
-Note: This client connects to a standalone Redis node.
+Note: This client connects to a standalone Redis node/sentinel cluster.
 For *Redis Cluster*, you need
 [eredis_cluster](https://github.com/Nordix/eredis_cluster) or
 [ecredis](https://github.com/HalloAppInc/ecredis).
@@ -23,6 +23,7 @@ Supported Redis features:
  * Pipelining
  * Authentication & multiple DBs
  * Pubsub
+ * Sentinel support
 
 Generated API documentation: [doc/eredis.md](doc/eredis.md)
 
@@ -56,6 +57,12 @@ Options = [{tls, [{cacertfile, "ca.crt"},
                   {certfile,   "client.crt"},
                   {keyfile,    "client.key"}]}],
 {ok, C2} = eredis:start_link("127.0.0.1", ?TLS_PORT, Options),
+```
+
+To connect to a Redis sentinel cluster:
+
+```erlang
+{ok, C1} = eredis:start_link([{sentinel, [{master_group, mymaster}, {addresses, [{"127.0.0.1", 26379}]}]}]).
 ```
 
 ## Example

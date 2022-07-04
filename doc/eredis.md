@@ -41,7 +41,7 @@ host() = string() | {local, string()}
 
 
 <pre><code>
-option() = {host, string() | {local, string()}} | {port, <a href="inet.md#type-port_number">inet:port_number()</a>} | {database, integer()} | {password, string()} | {reconnect_sleep, <a href="#type-reconnect_sleep">reconnect_sleep()</a>} | {connect_timeout, integer()} | {socket_options, list()} | {tls, [<a href="ssl.md#type-tls_client_option">ssl:tls_client_option()</a>]} | {name, <a href="#type-registered_name">registered_name()</a>}
+option() = {host, string() | {local, string()}} | {port, <a href="inet.md#type-port_number">inet:port_number()</a>} | {database, integer()} | {password, string()} | {reconnect_sleep, <a href="#type-reconnect_sleep">reconnect_sleep()</a>} | {connect_timeout, integer()} | {socket_options, list()} | {tls, [<a href="ssl.md#type-tls_client_option">ssl:tls_client_option()</a>]} | {name, <a href="#type-registered_name">registered_name()</a>} | {sentinel, list()}
 </code>
 </pre>
 
@@ -339,6 +339,21 @@ start_link(Options::<a href="#type-options">options()</a>) -&gt; {ok, pid()} | {
 <dd>Tuple to register the client with a name
   such as <code>{local, atom()}</code>; for all options see <code>ServerName</code> at<a href="https://erlang.org/doc/man/gen_server.md#start_link-4">gen_server:start_link/4</a>;
   default: no name
+</dd>
+
+
+
+<dt><code>{sentinel, SentinelOptions}</code></dt>
+
+
+
+<dd> Enables client for sentinel mode; options are required
+  to connect to sentinel cluster; default: undefined 
+</dd>
+
+
+
+<dd> Sentinel Options: <code>{master_group, master_group_name}</code> - Atom, default: mymaster;<code>{addresses, [{Host, Port}]}</code> - List of {Host, Port} tuples, default: [{"127.0.0.1", 26379}];<code>{username, Username}</code>;<code>{password, Password}</code>;<code>{connect_timeout, Timeout}</code>;<code>{socket_options, SockOpts}</code><code>{tls, TlsOpts}</code>
 </dd>
 
 
