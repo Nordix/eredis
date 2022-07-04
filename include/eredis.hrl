@@ -11,7 +11,8 @@
                   {connect_timeout, integer()} |
                   {socket_options, list()} |
                   {tls, [ssl:tls_client_option()]} |
-                  {name, registered_name()}.
+                  {name, registered_name()} |
+                  {sentinel, list()}.
 
 -type options() :: [option()].
 -type server_args() :: options().               % for backwards compatibility
