@@ -353,7 +353,7 @@ start_link(Options::<a href="#type-options">options()</a>) -&gt; {ok, pid()} | {
 
 
 
-<dd> Sentinel Options: <code>{master_group, master_group_name}</code> - Atom, default: mymaster;<code>{addresses, [{Host, Port}]}</code> - List of {Host, Port} tuples, default: [{"127.0.0.1", 26379}];<code>{username, Username}</code>;<code>{password, Password}</code>;<code>{connect_timeout, Timeout}</code>;<code>{socket_options, SockOpts}</code><code>{tls, TlsOpts}</code>
+<dd> Sentinel Options: <code>{master_group, master_group_name}</code> - Atom, default: mymaster;<code>{endpoints, [{Host, Port}]}</code> - List of {Host, Port} tuples, default: [{"127.0.0.1", 26379}];<code>{username, Username}</code>;<code>{password, Password}</code>;<code>{connect_timeout, Timeout}</code>;<code>{socket_options, SockOpts}</code><code>{tls, TlsOpts}</code>
 </dd>
 
 

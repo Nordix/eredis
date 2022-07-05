@@ -11,7 +11,7 @@
 -export([
          t_connect_with_default_opts/1
         , t_connect_with_wrong_master_port/1
-        , t_connect_with_mix_sentinel_addresses/1
+        , t_connect_with_mix_sentinel_endpoints/1
         , t_connect_with_explicit_options/1
         , t_stop/1
         , t_connection_failure_during_start_no_reconnect/1
@@ -26,7 +26,7 @@
 
 -define(WRONG_PORT, 6378).
 -define(SENTINEL_PORT, 26379).
--define(WRONG_SENTINEL_ADDRESSES, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]).
+-define(WRONG_SENTINEL_ENDPOINTS, [{"127.0.0.1", 26381}, {"127.0.0.1", 26382}]).
 -define(SENTINEL_UNREACHABLE, sentinel_unreachable).
 
 init_per_suite(Config) ->
@@ -51,13 +51,13 @@ t_connect_with_default_opts(Config) when is_list(Config) ->
 t_connect_with_wrong_master_port(Config) when is_list(Config) ->
     connect_eredis_sentinel([{port, ?WRONG_PORT}, {sentinel, []}]).
 
-t_connect_with_mix_sentinel_addresses(Config) when is_list(Config) ->
-    SentinelAddr = ?WRONG_SENTINEL_ADDRESSES ++ [{"127.0.0.1", ?SENTINEL_PORT}],
-    connect_eredis_sentinel([{sentinel, [{addresses, SentinelAddr}]}]).
+t_connect_with_mix_sentinel_endpoints(Config) when is_list(Config) ->
+    SentinelAddr = ?WRONG_SENTINEL_ENDPOINTS ++ [{"127.0.0.1", ?SENTINEL_PORT}],
+    connect_eredis_sentinel([{sentinel, [{endpoints, SentinelAddr}]}]).
 
 t_connect_with_explicit_options(Config) when is_list(Config) ->
     connect_eredis_sentinel([{sentinel, [{master_group, mymaster},
-                                           {addresses, [{"127.0.0.1", ?SENTINEL_PORT}]},
+                                           {endpoints, [{"127.0.0.1", ?SENTINEL_PORT}]},
                                            {connect_timeout, 5000},
                                            {socket_options, [{keepalive, true}]},
                                            {password, ""}
@@ -76,7 +76,7 @@ t_stop(Config) when is_list(Config) ->
     ?assertMatch(undefined, whereis(mymaster)).
 
 t_connection_failure_during_start_no_reconnect(Config) when is_list(Config) ->
-    SentinelOpts = [{addresses, ?WRONG_SENTINEL_ADDRESSES}],
+    SentinelOpts = [{endpoints, ?WRONG_SENTINEL_ENDPOINTS}],
     process_flag(trap_exit, true),
     Res = eredis:start_link([{reconnect_sleep, no_reconnect},
                              {sentinel, SentinelOpts}]),
@@ -87,7 +87,7 @@ t_connection_failure_during_start_no_reconnect(Config) when is_list(Config) ->
     ?assertEqual(died, IsDead).
 
 t_connection_failure_during_start_reconnect(Config) when is_list(Config) ->
-    SentinelOpts = [{addresses, ?WRONG_SENTINEL_ADDRESSES}],
+    SentinelOpts = [{endpoints, ?WRONG_SENTINEL_ENDPOINTS}],
     process_flag(trap_exit, true),
     Res = eredis:start_link([{reconnect_sleep, 100},
                              {sentinel, SentinelOpts}
