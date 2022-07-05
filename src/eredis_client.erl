@@ -372,7 +372,7 @@ connect(#state{host = Host0,
                auth_cmd = AuthCmd,
                database = Db,
                sentinel = SentinelOptions} = State) ->
-    MasterAddr = case SentinelOptions of
+    Endpoint = case SentinelOptions of
                      undefined -> {Host0, Port0};
                      _ ->
                          MasterGroup = proplists:get_value(master_group, SentinelOptions, mymaster),
@@ -385,7 +385,7 @@ connect(#state{host = Host0,
                              SentinelError -> SentinelError
                          end
                  end,
-    case MasterAddr of
+    case Endpoint of
         {error, _} = Err -> Err;
         {Host, Port} ->
             case connect(Host, Port, SocketOptions, TlsOptions,

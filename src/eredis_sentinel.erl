@@ -19,7 +19,7 @@
 
 -record(eredis_sentinel_state, {
                                 master_group    :: atom(),
-                                addresses       :: [{string(), integer()}],
+                                endpoints       :: [{string() | {local, string()} , integer()}],
                                 username        :: string() | undefined,
                                 password        :: string() | undefined,
                                 connect_timeout :: integer() | undefined,
@@ -62,14 +62,14 @@ get_master(Pid) ->
 init(Options) ->
     process_flag(trap_exit, true),
     MasterGroup         = proplists:get_value(master_group, Options, mymaster),
-    SentinelAddresses   = proplists:get_value(addresses, Options, [{"127.0.0.1", 26379}]),
+    Endpoints           = proplists:get_value(endpoints, Options, [{"127.0.0.1", 26379}]),
     Username            = proplists:get_value(username, Options, undefined),
     Password            = proplists:get_value(password, Options, undefined),
     ConnectTimeout      = proplists:get_value(connect_timeout, Options, ?CONNECT_TIMEOUT),
     SocketOptions       = proplists:get_value(socket_options, Options, []),
     TlsOptions          = proplists:get_value(tls, Options, []),
     {ok, #eredis_sentinel_state{master_group = MasterGroup,
-                                addresses = SentinelAddresses,
+                                endpoints = Endpoints,
                                 username = Username,
                                 password = Password,
                                 connect_timeout = ConnectTimeout,
@@ -158,7 +158,7 @@ rotate([X|Xs]) -> Xs ++ [X].
           {ok, {string(), integer()}, #eredis_sentinel_state{}} | {error, any(), #eredis_sentinel_state{}}.
 
 %% All sentinels return errors
-query_master(#eredis_sentinel_state{errors = Errors, addresses = Sentinels} = S)
+query_master(#eredis_sentinel_state{errors = Errors, endpoints = Sentinels} = S)
   when Errors#errors.total >= length(Sentinels) ->
     #errors{sentinel_unreachable=SU, master_unknown=MUK, master_unreachable=MUR} = Errors,
     if
@@ -172,7 +172,7 @@ query_master(#eredis_sentinel_state{errors = Errors, addresses = Sentinels} = S)
 
 %% No connected sentinel
 query_master(#eredis_sentinel_state{conn_pid=undefined,
-                                    addresses = [{H, P} | _],
+                                    endpoints = [{H, P} | _],
                                     username = Username,
                                     password = Password,
                                     connect_timeout = ConnectTimeout,
@@ -192,13 +192,13 @@ query_master(#eredis_sentinel_state{conn_pid=undefined,
         {error, E} ->
             error_logger:error_msg("Error connecting to sentinel at ~p:~p : ~p~n", [H, P, E]),
             Errors = update_errors(?SENTINEL_UNREACHABLE, S#eredis_sentinel_state.errors),
-            Sentinels = rotate(S#eredis_sentinel_state.addresses),
-            query_master(S#eredis_sentinel_state{addresses = Sentinels, errors = Errors})
+            Sentinels = rotate(S#eredis_sentinel_state.endpoints),
+            query_master(S#eredis_sentinel_state{endpoints = Sentinels, errors = Errors})
     end;
 %% Sentinel connected
 query_master(#eredis_sentinel_state{conn_pid=ConnPid,
                                     master_group = MasterGroup,
-                                    addresses=[{H, P}|_]} = S) when is_pid(ConnPid)->
+                                    endpoints=[{H, P}|_]} = S) when is_pid(ConnPid)->
     case query_master(ConnPid, MasterGroup) of
         {ok, HostPort} ->
             {ok, HostPort, S};
@@ -206,8 +206,8 @@ query_master(#eredis_sentinel_state{conn_pid=ConnPid,
             error_logger:error_msg("Master request for ~p to sentinel ~p:~p failed with ~p~n", [MasterGroup, H, P, Error]),
             eredis:stop(ConnPid),
             Errors = update_errors(Error, S#eredis_sentinel_state.errors),
-            Sentinels = rotate(S#eredis_sentinel_state.addresses),
-            query_master(S#eredis_sentinel_state{conn_pid = undefined, errors = Errors, addresses = Sentinels})
+            Sentinels = rotate(S#eredis_sentinel_state.endpoints),
+            query_master(S#eredis_sentinel_state{conn_pid = undefined, errors = Errors, endpoints = Sentinels})
     end.
 
 update_errors(E, #errors{sentinel_unreachable=SU, master_unknown=MUK, master_unreachable=MUR, total = T} = Errors) ->
