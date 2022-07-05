@@ -62,7 +62,9 @@ Options = [{tls, [{cacertfile, "ca.crt"},
 To connect to a Redis sentinel cluster:
 
 ```erlang
-{ok, C1} = eredis:start_link([{sentinel, [{master_group, mymaster}, {addresses, [{"127.0.0.1", 26379}]}]}]).
+SentinelOptions = [{master_group, mymaster},
+                   {endpoints, [{"127.0.0.1", 26379}]}],
+{ok, C1} = eredis:start_link([{sentinel, SentinelOptions}]).
 ```
 
 ## Example
