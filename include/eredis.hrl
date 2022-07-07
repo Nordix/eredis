@@ -6,6 +6,7 @@
 -type option() :: {host, string() | {local, string()}} |
                   {port, inet:port_number()} |
                   {database, integer()} |
+                  {username, string()} |
                   {password, string()} |
                   {reconnect_sleep, reconnect_sleep()} |
                   {connect_timeout, integer()} |

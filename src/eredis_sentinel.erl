@@ -17,11 +17,14 @@
                  total = 0                :: integer()
                 }).
 
+%% Hide secret strings in funs to prevent them from appearing in logs
+-type obfuscated_string() :: fun(() -> string()).
+
 -record(eredis_sentinel_state, {
                                 master_group    :: atom(),
                                 endpoints       :: [{string() | {local, string()} , integer()}],
-                                username        :: string() | undefined,
-                                password        :: string() | undefined,
+                                username        :: obfuscated_string() | undefined,
+                                password        :: obfuscated_string() | undefined,
                                 connect_timeout :: integer() | undefined,
                                 socket_options  :: list(),
                                 tls_options     :: list(),
@@ -70,8 +73,8 @@ init(Options) ->
     TlsOptions          = proplists:get_value(tls, Options, []),
     {ok, #eredis_sentinel_state{master_group = MasterGroup,
                                 endpoints = Endpoints,
-                                username = Username,
-                                password = Password,
+                                username = obfuscate(Username),
+                                password = obfuscate(Password),
                                 connect_timeout = ConnectTimeout,
                                 socket_options = SocketOptions,
                                 tls_options = TlsOptions,
@@ -181,8 +184,8 @@ query_master(#eredis_sentinel_state{conn_pid=undefined,
             ) ->
     case eredis:start_link([{host, H},
                             {port, P},
-                            {username, Username},
-                            {password, Password},
+                            {username, deobfuscate(Username)},
+                            {password, deobfuscate(Password)},
                             {connect_timeout, ConnectTimeout},
                             {socket_options, SocketOptions},
                             {tls, TlsOptions},
@@ -240,3 +243,15 @@ get_master_response({ok, undefined}) ->
     {error, ?MASTER_UNKNOWN};
 get_master_response({error, <<"IDONTKNOW", _Rest/binary >>}) ->
     {error, ?MASTER_UNREACHABLE}.
+
+-spec obfuscate(string() | undefined) -> obfuscated_string() | undefined.
+obfuscate(undefined) ->
+    undefined;
+obfuscate(String) ->
+    fun () -> String end.
+
+-spec deobfuscate(obfuscated_string() | undefined) -> string() | undefined.
+deobfuscate(undefined) ->
+    undefined;
+deobfuscate(Fun) when is_function(Fun, 0) ->
+    Fun().
