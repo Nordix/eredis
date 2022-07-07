@@ -239,8 +239,13 @@ terminate(_Reason, #state{socket = undefined}) ->
 terminate(_Reason, #state{socket = Socket, transport = Transport}) ->
     Transport:close(Socket).
 
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+%% Code change succeeds only if the state record has not changed.
+code_change(_OldVsn, #state{auth_cmd = AuthCmd} = State, _Extra)
+  when is_function(AuthCmd, 0); AuthCmd =:= undefined ->
+    %% auth_cmd was iodata in earlier versions
+    {ok, State};
+code_change(_OldVsn, _State, _Extra) ->
+    {error, not_implemented}.
 
 %%--------------------------------------------------------------------
 %%% Internal functions
@@ -612,6 +617,8 @@ get_auth_command(undefined, undefined) ->
 get_auth_command(undefined, "") -> % legacy
     undefined;
 get_auth_command(undefined, Password) ->
-    fun () -> eredis:create_multibulk([<<"AUTH">>, Password]) end;
+    AuthCmd = eredis:create_multibulk([<<"AUTH">>, Password]),
+    fun () -> AuthCmd end;
 get_auth_command(Username, Password) ->
-    fun () -> eredis:create_multibulk([<<"AUTH">>, Username, Password]) end.
+    AuthCmd = eredis:create_multibulk([<<"AUTH">>, Username, Password]),
+    fun () -> AuthCmd end.
