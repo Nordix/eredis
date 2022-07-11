@@ -49,11 +49,11 @@ start_link() ->
 %% <dt>`{port, Port}'</dt><dd>Integer, default is 6379</dd>
 %% <dt>`{database, Database}'</dt><dd>Integer; 0 for the default database</dd>
 %% <dt>`{username, Username}'</dt><dd>A 0-ary function that returns the username
-%% (the preferred way to provide username as it prevent the actual secret from
+%% (the preferred way to provide username as it prevents the actual secret from
 %% appearing in logs and stacktraces), a string or iodata or the atom
 %% `undefined' for no username; default `undefined'</dd>
 %% <dt>`{password, Password}'</dt><dd>A 0-ary function that returns the password
-%% (the preferred way to provide password as it prevent the actual secret from
+%% (the preferred way to provide password as it prevents the actual secret from
 %% appearing in logs and stacktraces), a string or iodata or the atom
 %% `undefined' for no username; default `undefined'</dd>
 %% <dt>`{reconnect_sleep, ReconnectSleep}'</dt><dd>Integer of milliseconds to
