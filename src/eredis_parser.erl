@@ -24,6 +24,8 @@
 -include("eredis.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-compile({inline, [binary_split_newline/1]}).
+
 -export([init/0, parse/2]).
 
 %%
@@ -185,11 +187,22 @@ split_by_newline(Acc, <<"\n", Rest/binary>>)
     {FirstLine, Rest};
 split_by_newline(Acc, Data) ->
     %% There's no "\r\n" in Acc so we can search only in Data.
-    case binary:match(Data, <<"\r\n">>) of
-        nomatch ->
-            nomatch;
-        {NewlinePos, 2} ->
-            <<LineEnd:NewlinePos/binary, "\r\n", Rest/binary>> = Data,
+    case binary_split_newline(Data) of
+        [LineEnd, Rest] ->
             FirstLine = <<Acc/binary, LineEnd/binary>>,
-            {FirstLine, Rest}
+            {FirstLine, Rest};
+        _ ->  % would match Data, but do not make the runtime check it
+            nomatch
     end.
+
+%% binary:split/2 seems faster than binary:match/2 for this use-case
+binary_split_newline(Data) ->
+    Pattern = case get(?NL_KEY) of
+        undefined ->
+            P = binary:compile_pattern(<<?NL>>),
+            put(?NL_KEY, P),
+            P;
+        P ->
+            P
+    end,
+    binary:split(Data, Pattern).

@@ -54,6 +54,7 @@
 }).
 
 -define(NL, "\r\n").
+-define(NL_KEY, eredis_newline_pattern).
 
 -define(SOCKET_MODE, binary).
 -define(SOCKET_OPTS, [{active, once}, {packet, raw}, {reuseaddr, false},
