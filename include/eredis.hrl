@@ -6,8 +6,8 @@
 -type option() :: {host, string() | {local, string()}} |
                   {port, inet:port_number()} |
                   {database, integer()} |
-                  {username, string()} |
-                  {password, string()} |
+                  {username, iodata() | fun(() -> iodata()) | undefined} |
+                  {password, iodata() | fun(() -> iodata()) | undefined} |
                   {reconnect_sleep, reconnect_sleep()} |
                   {connect_timeout, integer()} |
                   {socket_options, list()} |

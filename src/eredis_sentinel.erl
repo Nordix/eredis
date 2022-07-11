@@ -17,14 +17,11 @@
                  total = 0                :: integer()
                 }).
 
-%% Hide secret strings in funs to prevent them from appearing in logs
--type obfuscated_string() :: fun(() -> string()).
-
 -record(eredis_sentinel_state, {
                                 master_group    :: atom(),
                                 endpoints       :: [{string() | {local, string()} , integer()}],
-                                username        :: obfuscated_string() | undefined,
-                                password        :: obfuscated_string() | undefined,
+                                username        :: fun(() -> iodata()) | undefined,
+                                password        :: fun(() -> iodata()) | undefined,
                                 connect_timeout :: integer() | undefined,
                                 socket_options  :: list(),
                                 tls_options     :: list(),
@@ -184,8 +181,8 @@ query_master(#eredis_sentinel_state{conn_pid=undefined,
             ) ->
     case eredis:start_link([{host, H},
                             {port, P},
-                            {username, deobfuscate(Username)},
-                            {password, deobfuscate(Password)},
+                            {username, Username},
+                            {password, Password},
                             {connect_timeout, ConnectTimeout},
                             {socket_options, SocketOptions},
                             {tls, TlsOptions},
@@ -244,14 +241,14 @@ get_master_response({ok, undefined}) ->
 get_master_response({error, <<"IDONTKNOW", _Rest/binary >>}) ->
     {error, ?MASTER_UNREACHABLE}.
 
--spec obfuscate(string() | undefined) -> obfuscated_string() | undefined.
+%% Obfuscate a string by wrapping it in a fun that returns the string when
+%% applied. This hides the secrets from stacktraces and logs.
+-spec obfuscate(iodata() | fun(() -> iodata()) | undefined) ->
+          fun(() -> iodata()) | undefined.
 obfuscate(undefined) ->
     undefined;
-obfuscate(String) ->
-    fun () -> String end.
-
--spec deobfuscate(obfuscated_string() | undefined) -> string() | undefined.
-deobfuscate(undefined) ->
-    undefined;
-deobfuscate(Fun) when is_function(Fun, 0) ->
-    Fun().
+obfuscate(String) when is_list(String); is_binary(String) ->
+    fun () -> String end;
+obfuscate(Fun) when is_function(Fun, 0) ->
+    %% Already obfuscated
+    Fun.

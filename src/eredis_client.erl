@@ -240,9 +240,7 @@ terminate(_Reason, #state{socket = Socket, transport = Transport}) ->
     Transport:close(Socket).
 
 %% Code change succeeds only if the state record has not changed.
-code_change(_OldVsn, #state{auth_cmd = AuthCmd} = State, _Extra)
-  when is_function(AuthCmd, 0); AuthCmd =:= undefined ->
-    %% auth_cmd was iodata in earlier versions
+code_change(_OldVsn, #state{} = State, _Extra) ->
     {ok, State};
 code_change(_OldVsn, _State, _Extra) ->
     {error, not_implemented}.
@@ -609,16 +607,28 @@ read_database(undefined) ->
 read_database(Database) when is_integer(Database) ->
     list_to_binary(integer_to_list(Database)).
 
--spec get_auth_command(Username :: iodata() | undefined,
-                       Password :: iodata() | undefined) ->
+-spec get_auth_command(Username :: iodata() | fun(() -> iodata()) | undefined,
+                       Password :: iodata() | fun(() -> iodata()) | undefined) ->
           fun(() -> iodata()) | undefined.
-get_auth_command(undefined, undefined) ->
-    undefined;
-get_auth_command(undefined, "") -> % legacy
-    undefined;
-get_auth_command(undefined, Password) ->
-    AuthCmd = eredis:create_multibulk([<<"AUTH">>, Password]),
-    fun () -> AuthCmd end;
 get_auth_command(Username, Password) ->
-    AuthCmd = eredis:create_multibulk([<<"AUTH">>, Username, Password]),
-    fun () -> AuthCmd end.
+    case {deobfuscate(Username), deobfuscate(Password)} of
+        {undefined, undefined} ->
+            undefined;
+        {undefined, ""} ->                      % legacy
+            undefined;
+        {undefined, Pass} ->
+            AuthCmd = eredis:create_multibulk([<<"AUTH">>, Pass]),
+            fun () -> AuthCmd end;
+        {User, Pass} ->
+            AuthCmd = eredis:create_multibulk([<<"AUTH">>, User, Pass]),
+            fun () -> AuthCmd end
+    end.
+
+-spec deobfuscate(iodata() | fun(() -> iodata()) | undefined) ->
+          iodata() | undefined.
+deobfuscate(undefined) ->
+    undefined;
+deobfuscate(String) when is_list(String); is_binary(String) ->
+    String;
+deobfuscate(Fun) when is_function(Fun, 0) ->
+    Fun().
