@@ -178,7 +178,15 @@ do_parse({multibulk_continue, _RemainingItems, _Acc} = State, Data) ->
 
 %% Concat two binaries and then split by "\r\n", but without actually
 %% concatenating, thus avoiding creating a large binary which becomes garbage.
-%%
+%% Optimize the first clause for the most common case - when Acc is empty;
+%% note that checking `size() == 0` is faster than matching `<<>>`
+split_by_newline(Acc, Data) when size(Acc) == 0 ->
+    case binary_split_newline(Data) of
+        [FirstLine, Rest] ->
+            {FirstLine, Rest};  % avoid Acc concatenate
+        _ ->  % would match Data, but do not make the runtime check it
+            nomatch
+    end;
 %% Pre-condition: Acc does not contain "\r\n".
 split_by_newline(Acc, <<"\n", Rest/binary>>)
   when binary_part(Acc, byte_size(Acc), -1) =:= <<"\r">> ->
