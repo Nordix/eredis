@@ -650,7 +650,9 @@ t_ignore_old_socket(Module, _Config) ->
     %% The events are simulated by sending similar messages the
     %% client process would receive as a socket owner process
     %% when these events occurred.
-    {ok, C} = Module:start_link([{host, "127.0.0.1"}, {port, ?PORT}]),
+    {ok, C} = Module:start_link([{host, "127.0.0.1"},
+                                 {port, ?PORT},
+                                 {reconnect_sleep, no_reconnect}]),
     [Socket] = get_tcp_ports(C),
     C ! {tcp, old_socket, data}, %% Incoming data event
     timer:sleep(200),
