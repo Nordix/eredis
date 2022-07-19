@@ -2,7 +2,7 @@
         {host :: string() | undefined,
          port :: integer() | undefined,
          database :: binary() | undefined,
-         auth_cmd :: secret() | undefined,
+         auth_cmd :: obfuscated() | undefined,
          reconnect_sleep :: integer() | undefined | no_reconnect,
          connect_timeout :: integer() | undefined,
          socket_options :: list(),

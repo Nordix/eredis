@@ -41,7 +41,7 @@
 -record(state, {
                 host            :: string() | {local, string()} | undefined,
                 port            :: integer() | undefined,
-                auth_cmd        :: secret() | undefined,
+                auth_cmd        :: obfuscated() | undefined,
                 database        :: binary() | undefined,
                 reconnect_sleep :: reconnect_sleep() | undefined,
                 connect_timeout :: integer() | undefined,
@@ -410,7 +410,7 @@ connect(#state{host = Host0,
               SocketOptions  :: list(),
               TlsOptions     :: list(),
               ConnectTimeout :: integer() | undefined,
-              AuthCmd        :: secret() | undefined,
+              AuthCmd        :: obfuscated() | undefined,
               Db             :: binary() | undefined) ->
           {ok, Socket :: gen_tcp:socket() | ssl:sslsocket()} |
           {error, Reason :: term()}.
@@ -607,9 +607,9 @@ read_database(undefined) ->
 read_database(Database) when is_integer(Database) ->
     list_to_binary(integer_to_list(Database)).
 
--spec get_auth_command(Username :: iodata() | secret() | undefined,
-                       Password :: iodata() | secret() | undefined) ->
-          secret() | undefined.
+-spec get_auth_command(Username :: iodata() | obfuscated() | undefined,
+                       Password :: iodata() | obfuscated() | undefined) ->
+          obfuscated() | undefined.
 get_auth_command(Username, Password) ->
     case {deobfuscate(Username), deobfuscate(Password)} of
         {undefined, undefined} ->

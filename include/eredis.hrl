@@ -1,14 +1,14 @@
 %% Public types
 
--type secret() :: fun(() -> iodata()).
+-type obfuscated() :: fun(() -> iodata()).
 -type reconnect_sleep() :: no_reconnect | integer().
 -type registered_name() :: {local, atom()} | {global, term()} | {via, atom(), term()}.
 
 -type option() :: {host, string() | {local, string()}} |
                   {port, inet:port_number()} |
                   {database, integer()} |
-                  {username, iodata() | secret() | undefined} |
-                  {password, iodata() | secret() | undefined} |
+                  {username, iodata() | obfuscated() | undefined} |
+                  {password, iodata() | obfuscated() | undefined} |
                   {reconnect_sleep, reconnect_sleep()} |
                   {connect_timeout, integer()} |
                   {socket_options, list()} |
