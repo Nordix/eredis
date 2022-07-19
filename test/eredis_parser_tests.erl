@@ -358,7 +358,7 @@ parse_bulks_with_chunk_split_in_size_test() ->
 %% Helpers
 %%
 
-% parse a binary one byte at a time
+%% parse a binary one byte at a time
 one_byte_parse(B) ->
     one_byte_parse(init(), B).
 

@@ -271,13 +271,13 @@ remove_channels(Channels, OldChannels) ->
 -spec add_channels([binary()], [binary()]) -> [binary()].
 add_channels(Channels, OldChannels) ->
     lists:foldl(fun(C, Cs) ->
-        case lists:member(C, Cs) of
-            true ->
-                Cs;
-            false ->
-                [C|Cs]
-        end
-    end, OldChannels, Channels).
+                        case lists:member(C, Cs) of
+                            true ->
+                                Cs;
+                            false ->
+                                [C|Cs]
+                        end
+                end, OldChannels, Channels).
 
 %% @doc Sends a subscribe or psubscribe command to Redis.
 -spec send_subscribe_command(Transport :: gen_tcp | ssl,

@@ -38,11 +38,11 @@ init() ->
 
 
 -spec parse(State::#pstate{}, Data::binary()) ->
-                   {ok, return_value(), NewState::#pstate{}} |
-                       {ok, return_value(), Rest::binary(), NewState::#pstate{}} |
-                       {error, ErrString::binary(), NewState::#pstate{}} |
-                       {error, ErrString::binary(), Rest::binary(), NewState::#pstate{}} |
-                       {continue, NewState::#pstate{}}.
+          {ok, return_value(), NewState::#pstate{}} |
+          {ok, return_value(), Rest::binary(), NewState::#pstate{}} |
+          {error, ErrString::binary(), NewState::#pstate{}} |
+          {error, ErrString::binary(), Rest::binary(), NewState::#pstate{}} |
+          {continue, NewState::#pstate{}}.
 
 %% @doc: Parses the (possibly partial) response from Redis. Returns
 %% either {ok, Value, NewState}, {ok, Value, Rest, NewState} or
@@ -206,11 +206,11 @@ split_by_newline(Acc, Data) ->
 %% binary:split/2 seems faster than binary:match/2 for this use-case
 binary_split_newline(Data) ->
     Pattern = case get(?NL_KEY) of
-        undefined ->
-            P = binary:compile_pattern(<<?NL>>),
-            put(?NL_KEY, P),
-            P;
-        P ->
-            P
-    end,
+                  undefined ->
+                      P = binary:compile_pattern(<<?NL>>),
+                      put(?NL_KEY, P),
+                      P;
+                  P ->
+                      P
+              end,
     binary:split(Data, Pattern).

@@ -30,7 +30,7 @@
                                }).
 
 -define(CONNECT_TIMEOUT, 5000).
-%́% Sentinel errors
+%% Sentinel errors
 -define(SENTINEL_UNREACHABLE, sentinel_unreachable).
 -define(MASTER_UNKNOWN, master_unknown).
 -define(MASTER_UNREACHABLE, master_unreachable).

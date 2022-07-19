@@ -57,11 +57,11 @@ t_connect_with_mix_sentinel_endpoints(Config) when is_list(Config) ->
 
 t_connect_with_explicit_options(Config) when is_list(Config) ->
     connect_eredis_sentinel([{sentinel, [{master_group, mymaster},
-                                           {endpoints, [{"127.0.0.1", ?SENTINEL_PORT}]},
-                                           {connect_timeout, 5000},
-                                           {socket_options, [{keepalive, true}]},
-                                           {password, ""}
-                                          ]}]).
+                                         {endpoints, [{"127.0.0.1", ?SENTINEL_PORT}]},
+                                         {connect_timeout, 5000},
+                                         {socket_options, [{keepalive, true}]},
+                                         {password, ""}
+                                        ]}]).
 
 t_stop(Config) when is_list(Config) ->
     process_flag(trap_exit, true),

@@ -155,17 +155,17 @@ t_dynamic_channels(Config) when is_list(Config) ->
     %% We do the following twice to show that subscribing to the same channel
     %% doesn't cause the channel to show up twice
     lists:foreach(fun(_) ->
-        eredis_sub:subscribe(Sub, [<<"newchan">>, <<"otherchan">>]),
-        receive M1 -> ?assertEqual({subscribed, <<"newchan">>, Sub}, M1) end,
-        eredis_sub:ack_message(Sub),
-        receive M2 -> ?assertEqual({subscribed, <<"otherchan">>, Sub}, M2) end,
-        eredis_sub:ack_message(Sub),
+                          eredis_sub:subscribe(Sub, [<<"newchan">>, <<"otherchan">>]),
+                          receive M1 -> ?assertEqual({subscribed, <<"newchan">>, Sub}, M1) end,
+                          eredis_sub:ack_message(Sub),
+                          receive M2 -> ?assertEqual({subscribed, <<"otherchan">>, Sub}, M2) end,
+                          eredis_sub:ack_message(Sub),
 
-        {ok, Channels} = eredis_sub:channels(Sub),
-        ?assertEqual(true, lists:member(<<"otherchan">>, Channels)),
-        ?assertEqual(true, lists:member(<<"newchan">>, Channels)),
-        ?assertEqual(2, length(Channels))
-    end, lists:seq(0, 1)),
+                          {ok, Channels} = eredis_sub:channels(Sub),
+                          ?assertEqual(true, lists:member(<<"otherchan">>, Channels)),
+                          ?assertEqual(true, lists:member(<<"newchan">>, Channels)),
+                          ?assertEqual(2, length(Channels))
+                  end, lists:seq(0, 1)),
 
     eredis:q(Pub, [publish, newchan, foo]),
     ?assertEqual([{message, <<"newchan">>, <<"foo">>, Sub}], recv_all(Sub)),
@@ -184,7 +184,7 @@ t_dynamic_channels(Config) when is_list(Config) ->
     eredis_sub:ack_message(Sub),
     ?assertEqual({ok, []}, eredis_sub:channels(Sub)).
 
-% Tests for Pattern Subscribe
+%% Tests for Pattern Subscribe
 t_pubsub_pattern(Config) when is_list(Config) ->
     Pub = c(),
     Sub = s(),
@@ -282,7 +282,7 @@ recv_all(Sub, Acc) ->
             eredis_sub:ack_message(Sub),
             recv_all(Sub, [InMsg | Acc])
     after 5 ->
-              lists:reverse(Acc)
+            lists:reverse(Acc)
     end.
 
 subscriber(Client) ->

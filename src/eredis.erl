@@ -142,7 +142,7 @@ stop(Client) ->
     eredis_client:stop(Client).
 
 -spec q(Client::client(), Command::[any()]) ->
-               {ok, return_value()} | {error, Reason::binary() | no_connection}.
+          {ok, return_value()} | {error, Reason::binary() | no_connection}.
 %% @doc: Executes the given command in the specified connection. The
 %% command must be a valid Redis command and may contain arbitrary
 %% data which will be converted to binaries. The returned values will
@@ -151,15 +151,15 @@ q(Client, Command) ->
     call(Client, Command, ?TIMEOUT).
 
 -spec q(Client::client(), Command::[any()], Timeout::integer()) ->
-               {ok, return_value()} | {error, Reason::binary() | no_connection}.
+          {ok, return_value()} | {error, Reason::binary() | no_connection}.
 %% @doc Like q/2 with a custom timeout.
 q(Client, Command, Timeout) ->
     call(Client, Command, Timeout).
 
 
 -spec qp(Client::client(), Pipeline::pipeline()) ->
-                [{ok, return_value()} | {error, Reason::binary()}] |
-                {error, no_connection}.
+          [{ok, return_value()} | {error, Reason::binary()}] |
+          {error, no_connection}.
 %% @doc: Executes the given pipeline (list of commands) in the
 %% specified connection. The commands must be valid Redis commands and
 %% may contain arbitrary data which will be converted to binaries. The
@@ -168,8 +168,8 @@ qp(Client, Pipeline) ->
     pipeline(Client, Pipeline, ?TIMEOUT).
 
 -spec qp(Client::client(), Pipeline::pipeline(), Timeout::integer()) ->
-                [{ok, return_value()} | {error, Reason::binary()}] |
-                {error, no_connection}.
+          [{ok, return_value()} | {error, Reason::binary()}] |
+          {error, no_connection}.
 %% @doc Like qp/2 with a custom timeout.
 qp(Client, Pipeline, Timeout) ->
     pipeline(Client, Pipeline, Timeout).
@@ -182,9 +182,9 @@ q_noreply(Client, Command) ->
     cast(Client, Command).
 
 -spec q_async(Client::client(), Command::[any()]) -> ok.
-% @doc Executes the command, and sends a message to the calling process with the
-% response (with either error or success). Message is of the form `{response,
-% Reply}', where `Reply' is the reply expected from `q/2'.
+%% @doc Executes the command, and sends a message to the calling process with the
+%% response (with either error or success). Message is of the form `{response,
+%% Reply}', where `Reply' is the reply expected from `q/2'.
 q_async(Client, Command) ->
     q_async(Client, Command, self()).
 

@@ -51,8 +51,8 @@
 %% Internal parser state. Is returned from parse/2 and must be
 %% included on the next calls to parse/2.
 -record(pstate, {
-          states = [] :: [continuation_data()]
-}).
+                 states = [] :: [continuation_data()]
+                }).
 
 -define(NL, "\r\n").
 -define(NL_KEY, eredis_newline_pattern).

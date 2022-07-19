@@ -376,18 +376,18 @@ connect(#state{host = Host0,
                database = Db,
                sentinel = SentinelOptions} = State) ->
     Endpoint = case SentinelOptions of
-                     undefined -> {Host0, Port0};
-                     _ ->
-                         MasterGroup = proplists:get_value(master_group, SentinelOptions, mymaster),
-                         case whereis(MasterGroup) of
-                             undefined -> eredis_sentinel:start_link(MasterGroup, SentinelOptions);
-                             _ -> ok
-                         end,
-                         case eredis_sentinel:get_master(MasterGroup) of
-                             {ok, Host1, Port1} -> {Host1, Port1};
-                             SentinelError -> SentinelError
-                         end
-                 end,
+                   undefined -> {Host0, Port0};
+                   _ ->
+                       MasterGroup = proplists:get_value(master_group, SentinelOptions, mymaster),
+                       case whereis(MasterGroup) of
+                           undefined -> eredis_sentinel:start_link(MasterGroup, SentinelOptions);
+                           _ -> ok
+                       end,
+                       case eredis_sentinel:get_master(MasterGroup) of
+                           {ok, Host1, Port1} -> {Host1, Port1};
+                           SentinelError -> SentinelError
+                       end
+               end,
     case Endpoint of
         {error, _} = Err -> Err;
         {Host, Port} ->
