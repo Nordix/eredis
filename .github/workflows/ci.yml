@@ -6,6 +6,25 @@ on:
       - master
 
 jobs:
+  fmt:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Prepare
+        run: |
+          sudo apt update
+          sudo apt install emacs-nox
+      - name: Run erlang-formatter
+        run: |
+          rebar3 fmt
+          status="$(git status --untracked-file=no --porcelain)"
+          if [ ! -z "$status" ]; \
+          then \
+             echo "Error: Please format the following files (e.g. run 'rebar3 fmt')"; \
+             echo "$status"; \
+             exit 1; \
+          fi
+
   ci:
     strategy:
       matrix:
