@@ -20,8 +20,8 @@
 -record(eredis_sentinel_state, {
                                 master_group    :: atom(),
                                 endpoints       :: [{string() | {local, string()} , integer()}],
-                                username        :: fun(() -> iodata()) | undefined,
-                                password        :: fun(() -> iodata()) | undefined,
+                                username        :: secret() | undefined,
+                                password        :: secret() | undefined,
                                 connect_timeout :: integer() | undefined,
                                 socket_options  :: list(),
                                 tls_options     :: list(),
@@ -243,8 +243,8 @@ get_master_response({error, <<"IDONTKNOW", _Rest/binary >>}) ->
 
 %% Obfuscate a string by wrapping it in a fun that returns the string when
 %% applied. This hides the secrets from stacktraces and logs.
--spec obfuscate(iodata() | fun(() -> iodata()) | undefined) ->
-          fun(() -> iodata()) | undefined.
+-spec obfuscate(iodata() | secret() | undefined) ->
+          secret() | undefined.
 obfuscate(undefined) ->
     undefined;
 obfuscate(String) when is_list(String); is_binary(String) ->
