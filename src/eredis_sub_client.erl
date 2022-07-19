@@ -182,10 +182,8 @@ handle_cast(_Msg, State) ->
 
 
 %% Receive TCP/TLS data from socket. Match `Socket' to enforce sanity.
-handle_info({Type, Socket, Bs},
-            #state{socket = Socket, transport = Transport} = State)
+handle_info({Type, Socket, Bs}, #state{socket = Socket} = State)
   when Type =:= tcp; Type =:= ssl->
-    ok = setopts(Socket, Transport, [{active, once}]),
     NewState = handle_response(Bs, State),
     case queue:len(NewState#state.msg_queue) > NewState#state.max_queue_size of
         true ->
@@ -199,6 +197,19 @@ handle_info({Type, Socket, Bs},
             end;
         false ->
             {noreply, NewState}
+    end;
+
+%% Socket switched to passive mode due to {active, N}.
+handle_info({Passive, Socket},
+            #state{socket = Socket, transport = Transport,
+                   socket_options = SocketOpts, tls_options = TlsOpts} = State)
+  when Passive =:= tcp_passive; Passive =:= ssl_passive ->
+    N = eredis_client:get_active(SocketOpts, TlsOpts),
+    case setopts(Socket, Transport, [{active, N}]) of
+        ok ->
+            {noreply, State};
+        {error, Reason} ->
+            maybe_reconnect(Reason, State)
     end;
 
 handle_info({Error, Socket, _Reason}, #state{socket = Socket} = State)
@@ -366,7 +377,6 @@ connect(#state{host = Host, port = Port, socket_options = SocketOptions,
                                         lists:reverse(State#state.channels)),
             ok = send_subscribe_command(Transport, Socket, "PSUBSCRIBE",
                                         lists:reverse(State#state.pchannels)),
-            ok = setopts(Socket, Transport, [{active, once}]),
 
             %% Notify application that connection is ready.
             send_to_controller({eredis_connected, self()}, State),

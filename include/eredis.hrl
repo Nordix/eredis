@@ -54,10 +54,10 @@
 
 -define(NL, "\r\n").
 -define(NL_KEY, eredis_newline_pattern).
-
 -define(SOCKET_MODE, binary).
--define(SOCKET_OPTS, [{active, once}, {packet, raw}, {reuseaddr, false},
+-define(SOCKET_OPTS, [{packet, raw}, {reuseaddr, false},
                       {keepalive, false}, {send_timeout, ?SEND_TIMEOUT}]).
+-define(SOCKET_ACTIVE, 10).
 
 -define(RECV_TIMEOUT, 5000).
 -define(SEND_TIMEOUT, 5000).
