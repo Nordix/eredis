@@ -170,10 +170,15 @@ takes the following options (proplist):
 * `reconnect_sleep`: integer of milliseconds to sleep between reconnect attempts, default: 100
 * `connect_timeout`: timeout value in milliseconds to use in the connect, default: 5000
 * `socket_options`: proplist of [gen_tcp](https://erlang.org/doc/man/gen_tcp.html)
-  options used when connecting the socket, default is `?SOCKET_OPTS`
+  options used when connecting the socket, default is `?SOCKET_OPTS`.
+  It's possible to specify `{active, N}` or `{active, true}`.
+  Active `once` and `false` are not supported. The default is N = 10.
 * `tls`: enable TLS by providing a list of
   [options](https://erlang.org/doc/man/ssl.html) used when establishing the TLS
-  connection, default is off
+  connection, default is off.
+  It's possible to specify `{active, N}` or `{active, true}` in TLS options.
+  Active `once` and `false` are not supported. The default is N = 10.
+  Note that `{active, N}` with TLS requires OTP 21.3 or later.
 
 ## Implicit pipelining
 
@@ -321,21 +326,12 @@ response will be in the same order as the requests.
 
 ## Response parsing
 
-The response parser is the biggest difference between Eredis and other
-libraries like Erldis, redis-erl and redis_pool. The common approach
-is to either directly block or use active once to get the first part
-of the response, then repeatedly use `gen_tcp:recv/2` to get more data
-when needed. Profiling identified this as a bottleneck, in particular
-for `MGET` and `HMGET`.
+The socket is set to `{active, N}` with N = 10 by default. This is configurable
+by including `{active, N}` in socket options or TLS options (if TLS is used). N
+must be an integer or `true`. Active `once` and `false` are not supported.
 
-To be as fast as possible, Eredis takes a different approach. The
-socket is always set to active once, which will let us receive data
-fast without blocking the gen_server. The tradeoff is that we must
-parse partial responses, which makes the parser more complex.
-
-In order to make multibulk responses more efficient, the parser
-will parse all data available and continue where it left off when more
-data is available.
+The response parser is capable of parsing partial data and continuing when more
+data arrives on the socket.
 
 ## Tests and code checking
 
