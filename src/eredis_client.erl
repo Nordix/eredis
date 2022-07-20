@@ -36,7 +36,7 @@
          terminate/2, code_change/3]).
 
 %% Used by eredis_sub_client.erl
--export([read_database/1, get_auth_command/2, connect/7, get_active/2]).
+-export([read_database/1, get_auth_command/2, connect/8, get_active/2]).
 
 -record(state, {
                 host            :: string() | {local, string()} | undefined,
@@ -50,6 +50,7 @@
                 sentinel        :: list() | undefined,
 
                 transport       :: gen_tcp | ssl,
+                active          :: pos_integer() | true,
                 socket          :: gen_tcp:socket() | ssl:sslsocket() | undefined,
                 reconnect_timer :: reference() | undefined,
                 parser_state    :: #pstate{} | undefined,
@@ -89,7 +90,11 @@ init(Options) ->
     SocketOptions  = proplists:get_value(socket_options, Options, []),
     TlsOptions     = proplists:get_value(tls, Options, []),
     Transport      = transport_module(TlsOptions),
+    Active         = get_active(SocketOptions, TlsOptions),
     Sentinel       = proplists:get_value(sentinel, Options, undefined),
+
+    %% We can handle {active, N} and {active, true}. Other modes crash here.
+    true = is_integer(Active) orelse Active =:= true,
 
     State = #state{host = Host,
                    port = Port,
@@ -100,8 +105,8 @@ init(Options) ->
                    socket_options = SocketOptions,
                    tls_options = TlsOptions,
                    transport = Transport,
+                   active = Active,
                    sentinel = Sentinel,
-
                    socket = undefined,
                    parser_state = eredis_parser:init(),
                    queue = queue:new()},
@@ -158,10 +163,8 @@ handle_info({Type, Socket, Data}, #state{socket = Socket} = State)
 
 %% Socket switched to passive mode due to {active, N}.
 handle_info({Passive, Socket},
-            #state{socket = Socket, transport = Transport,
-                   socket_options = SocketOpts, tls_options = TlsOpts} = State)
+            #state{socket = Socket, transport = Transport, active = N} = State)
   when Passive =:= tcp_passive; Passive =:= ssl_passive ->
-    N = get_active(SocketOpts, TlsOpts),
     case setopts(Socket, Transport, [{active, N}]) of
         ok ->
             {noreply, State};
@@ -380,6 +383,7 @@ connect(#state{host = Host0,
                connect_timeout = ConnectTimeout,
                auth_cmd = AuthCmd,
                database = Db,
+               active = Active,
                sentinel = SentinelOptions} = State) ->
     Endpoint = case SentinelOptions of
                    undefined -> {Host0, Port0};
@@ -398,7 +402,7 @@ connect(#state{host = Host0,
         {error, _} = Err -> Err;
         {Host, Port} ->
             case connect(Host, Port, SocketOptions, TlsOptions,
-                         ConnectTimeout, AuthCmd, Db) of
+                         ConnectTimeout, AuthCmd, Db, Active) of
                 {ok, Socket} ->
                     %% In case the connection terminates immediately (this happens with
                     %% an expired certificate with TLS 1.3) schedule a reconnect already
@@ -417,20 +421,17 @@ connect(#state{host = Host0,
               TlsOptions     :: list(),
               ConnectTimeout :: integer() | undefined,
               AuthCmd        :: obfuscated() | undefined,
-              Db             :: binary() | undefined) ->
+              Db             :: binary() | undefined,
+              Active         :: pos_integer() | true) ->
           {ok, Socket :: gen_tcp:socket() | ssl:sslsocket()} |
           {error, Reason :: term()}.
-connect(Host, Port, SocketOptions, TlsOptions, ConnectTimeout, AuthCmd, Db) ->
+connect(Host, Port, SocketOptions, TlsOptions, ConnectTimeout, AuthCmd, Db,
+        Active) ->
     {ok, {AFamily, Addrs}} = get_addrs(Host),
     Port1 = case AFamily of
                 local -> 0;
                 _ -> Port
             end,
-    Active = get_active(SocketOptions, TlsOptions),
-
-    %% We can handle {active, N} and {active, true}. Other modes crash here.
-    true = is_integer(Active) orelse Active =:= true,
-
     %% Connect in passive mode. We switch to active N or true later.
     SocketOptions1 = lists:keydelete(active, 1, SocketOptions),
     SocketOptions2 = lists:ukeymerge(1, lists:keysort(1, SocketOptions1),
@@ -443,22 +444,11 @@ connect(Host, Port, SocketOptions, TlsOptions, ConnectTimeout, AuthCmd, Db) ->
             [_|_] -> [{active, false} | lists:keydelete(active, 1, TlsOptions)]
         end,
 
-    case connect_next_addr(Addrs, Port1, SocketOptions3, TlsOptions1,
-                           ConnectTimeout, AuthCmd, Db) of
-        {ok, Socket} ->
-            Transport = transport_module(TlsOptions),
-            case setopts(Socket, Transport, [{active, Active}]) of
-                ok ->
-                    {ok, Socket};
-                Error ->
-                    Error
-            end;
-        Error ->
-            Error
-    end.
+    connect_next_addr(Addrs, Port1, SocketOptions3, TlsOptions1,
+                      ConnectTimeout, AuthCmd, Db, Active).
 
 connect_next_addr([Addr|Addrs], Port, SocketOptions, TlsOptions, ConnectTimeout,
-                  AuthCmd, Db) ->
+                  AuthCmd, Db, Active) ->
     case gen_tcp:connect(Addr, Port, SocketOptions, ConnectTimeout) of
         {ok, Socket} ->
             case maybe_upgrade_to_tls(Socket, TlsOptions, ConnectTimeout) of
@@ -468,7 +458,14 @@ connect_next_addr([Addr|Addrs], Port, SocketOptions, TlsOptions, ConnectTimeout,
                         ok ->
                             case select_database(NewSocket, Transport, Db) of
                                 ok ->
-                                    {ok, NewSocket};
+                                    case setopts(NewSocket, Transport,
+                                                 [{active, Active}]) of
+                                        ok ->
+                                            {ok, NewSocket};
+                                        {error, Reason} ->
+                                            Transport:close(NewSocket),
+                                            {error, {setopts, Reason}}
+                                    end;
                                 {error, Reason} ->
                                     Transport:close(NewSocket),
                                     {error, {select_error, Reason}}
@@ -486,7 +483,7 @@ connect_next_addr([Addr|Addrs], Port, SocketOptions, TlsOptions, ConnectTimeout,
         {error, _Reason} ->
             %% Try next address
             connect_next_addr(Addrs, Port, SocketOptions, TlsOptions,
-                              ConnectTimeout, AuthCmd, Db)
+                              ConnectTimeout, AuthCmd, Db, Active)
     end.
 
 maybe_upgrade_to_tls(Socket, [], _Timeout) ->

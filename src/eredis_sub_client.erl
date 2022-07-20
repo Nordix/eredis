@@ -58,6 +58,7 @@ init(Options) ->
                          [] -> gen_tcp;
                          _ -> ssl
                      end,
+    Active         = eredis_client:get_active(SocketOptions, TlsOptions),
 
     %% eredis_pub specific options
     MaxQueueSize   = proplists:get_value(max_queue_size, Options, infinity),
@@ -73,6 +74,7 @@ init(Options) ->
                    socket_options  = SocketOptions,
                    tls_options     = TlsOptions,
                    transport       = Transport,
+                   active          = Active,
                    channels        = [],
                    pchannels       = [],
                    parser_state    = eredis_parser:init(),
@@ -201,10 +203,8 @@ handle_info({Type, Socket, Bs}, #state{socket = Socket} = State)
 
 %% Socket switched to passive mode due to {active, N}.
 handle_info({Passive, Socket},
-            #state{socket = Socket, transport = Transport,
-                   socket_options = SocketOpts, tls_options = TlsOpts} = State)
+            #state{socket = Socket, transport = Transport, active = N} = State)
   when Passive =:= tcp_passive; Passive =:= ssl_passive ->
-    N = eredis_client:get_active(SocketOpts, TlsOpts),
     case setopts(Socket, Transport, [{active, N}]) of
         ok ->
             {noreply, State};
@@ -365,11 +365,11 @@ queue_or_send(Msg, State) ->
 %% synchronous and if Redis returns something we don't expect, we
 %% crash. Returns {ok, State} or {error, Reason}.
 connect(#state{host = Host, port = Port, socket_options = SocketOptions,
-               transport = Transport,
+               transport = Transport, active = Active,
                connect_timeout = ConnectTimeout, tls_options = TlsOptions,
                auth_cmd = AuthCmd, database = Db} = State) ->
     case eredis_client:connect(Host, Port, SocketOptions, TlsOptions,
-                               ConnectTimeout, AuthCmd, Db) of
+                               ConnectTimeout, AuthCmd, Db, Active) of
         {ok, Socket} ->
             %% Re-subscribe to channels. Channels are stored in reverse order in
             %% state.

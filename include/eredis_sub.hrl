@@ -9,6 +9,7 @@
          tls_options :: list(),
 
          transport :: gen_tcp | ssl,
+         active :: pos_integer() | true,
          socket :: gen_tcp:socket() | ssl:sslsocket() | undefined,
          reconnect_timer :: reference() | undefined,
          parser_state :: #pstate{} | undefined,
