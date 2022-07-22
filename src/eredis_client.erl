@@ -24,6 +24,7 @@
 -module(eredis_client).
 -behaviour(gen_server).
 -include("eredis.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -define(CONNECT_TIMEOUT, 5000).
 -define(RECONNECT_SLEEP, 100).
@@ -230,13 +231,14 @@ handle_info(initiate_connection, #state{socket = undefined} = State) ->
         {ok, NewState} ->
             {noreply, NewState};
         {error, Reason} ->
-            {noreply, schedule_reconnect(Reason, State)}
+            ?LOG_WARNING("eredis: Initial connect failed: ~p", [Reason]),
+            {noreply, schedule_reconnect(State)}
     end;
 
-handle_info({reconnect, Reason}, #state{socket = undefined} = State) ->
+handle_info(reconnect, #state{socket = undefined} = State) ->
     %% Scheduled reconnect, if disconnected.
-    maybe_reconnect(Reason, State#state{reconnect_timer = undefined});
-handle_info({reconnect, _Reason}, State) ->
+    maybe_reconnect(retry, State#state{reconnect_timer = undefined});
+handle_info(reconnect, State) ->
     %% Already connected.
     {noreply, State#state{reconnect_timer = undefined}};
 
@@ -336,7 +338,7 @@ reply(Value, Queue) ->
             queue:in_r({N - 1, From, [Value | Replies]}, NewQueue);
         {empty, Queue} ->
             %% Oops
-            error_logger:info_msg("eredis: Nothing in queue, but got value from parser~n"),
+            ?LOG_NOTICE("eredis: Nothing in queue, but got value from parser~n"),
             exit(empty_queue)
     end.
 
@@ -368,7 +370,8 @@ safe_send(Pid, Value) ->
     try erlang:send(Pid, Value)
     catch
         Err:Reason ->
-            error_logger:info_msg("eredis: Failed to send message to ~p with reason ~p~n", [Pid, {Err, Reason}])
+            ?LOG_NOTICE("eredis: Failed to send message to ~p with reason ~p~n",
+                        [Pid, {Err, Reason}])
     end.
 
 %% @doc: Helper for connecting to Redis, authenticating and selecting
@@ -408,7 +411,7 @@ connect(#state{host = Host0,
                     %% an expired certificate with TLS 1.3) schedule a reconnect already
                     %% so that we don't try to reconnect if an error is received before
                     %% reconnect_sleep milliseconds has elapsed.
-                    {ok, schedule_reconnect(unknown, State#state{socket = Socket})};
+                    {ok, schedule_reconnect(State#state{socket = Socket})};
                 Error ->
                     Error
             end
@@ -567,17 +570,18 @@ close_socket(#state{socket = Socket, transport = Transport} = State) ->
     State#state{socket = undefined}.
 
 %% @doc Schedules a reconnect attempt, if reconnect is enabled.
--spec schedule_reconnect(Reason :: any(), #state{}) -> #state{}.
-schedule_reconnect(_Reason, #state{reconnect_sleep = no_reconnect} = State) ->
+-spec schedule_reconnect(#state{}) -> #state{}.
+schedule_reconnect(#state{reconnect_sleep = no_reconnect} = State) ->
     State;
-schedule_reconnect(Reason, #state{reconnect_sleep = ReconnectSleep,
-                                  reconnect_timer = undefined} = State) ->
-    TRef = erlang:send_after(ReconnectSleep, self(), {reconnect, Reason}),
+schedule_reconnect(#state{reconnect_sleep = ReconnectSleep,
+                          reconnect_timer = undefined} = State) ->
+    TRef = erlang:send_after(ReconnectSleep, self(), reconnect),
     State#state{reconnect_timer = TRef}.
 
-%% @doc Reconnects, but not if a reconnect has been scheduled or if reconnect is
-%% disabled. The socket in the state is closed, if any. Returns {noreply, State}
-%% or {stop, ExitReason, State} like handle_info.
+%% @doc Logs a lost connection error with Reason and potentially reconnects or
+%% schedules a reconnect, depending on options. The socket in the state is
+%% closed, if any. Returns {noreply, State} or {stop, ExitReason, State} like
+%% handle_info.
 maybe_reconnect(Reason, #state{reconnect_sleep = no_reconnect, queue = Queue} = State) ->
     reply_all({error, Reason}, Queue),
     %% If we aren't going to reconnect, then there is nothing else for
@@ -593,8 +597,8 @@ maybe_reconnect(Reason,
                        host = Host,
                        port = Port,
                        reconnect_timer = undefined} = State) ->
-    error_logger:error_msg("eredis: Re-establishing connection to ~p:~p due to ~p",
-                           [Host, Port, Reason]),
+    log_reconnect(Reason, Host, Port),
+
     %% Tell all of our clients what has happened.
     reply_all({error, Reason}, Queue),
 
@@ -606,8 +610,16 @@ maybe_reconnect(Reason,
         {ok, State2} ->
             {noreply, State2};
         {error, NewReason} ->
-            {noreply, schedule_reconnect(NewReason, State1)}
+            ?LOG_NOTICE("eredis: Reconnect failed: ~p", [NewReason]),
+            {noreply, schedule_reconnect(State1)}
     end.
+
+log_reconnect(retry, _Host, _Port) ->
+    %% Don't flood the log for every retry, in case the Redis node is down.
+    ok;
+log_reconnect(Reason, Host, Port) ->
+    ?LOG_WARNING("eredis: Re-establishing connection to ~p:~p due to ~p",
+                 [Host, Port, Reason]).
 
 read_database(undefined) ->
     undefined;
