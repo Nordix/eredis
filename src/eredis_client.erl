@@ -338,7 +338,7 @@ reply(Value, Queue) ->
             queue:in_r({N - 1, From, [Value | Replies]}, NewQueue);
         {empty, Queue} ->
             %% Oops
-            ?LOG_NOTICE("eredis: Nothing in queue, but got value from parser~n"),
+            ?LOG_NOTICE("eredis: Nothing in queue, but got value from parser"),
             exit(empty_queue)
     end.
 
@@ -370,7 +370,7 @@ safe_send(Pid, Value) ->
     try erlang:send(Pid, Value)
     catch
         Err:Reason ->
-            ?LOG_NOTICE("eredis: Failed to send message to ~p with reason ~p~n",
+            ?LOG_NOTICE("eredis: Failed to send message to ~p with reason ~p",
                         [Pid, {Err, Reason}])
     end.
 

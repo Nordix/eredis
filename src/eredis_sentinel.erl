@@ -191,7 +191,7 @@ query_master(#eredis_sentinel_state{conn_pid=undefined,
         {ok, ConnPid} ->
             query_master(S#eredis_sentinel_state{conn_pid=ConnPid});
         {error, E} ->
-            ?LOG_WARNING("Error connecting to sentinel at ~p:~p : ~p~n", [H, P, E]),
+            ?LOG_WARNING("Error connecting to sentinel at ~p:~p : ~p", [H, P, E]),
             Errors = update_errors(?SENTINEL_UNREACHABLE, S#eredis_sentinel_state.errors),
             Sentinels = rotate(S#eredis_sentinel_state.endpoints),
             query_master(S#eredis_sentinel_state{endpoints = Sentinels, errors = Errors})
@@ -204,7 +204,7 @@ query_master(#eredis_sentinel_state{conn_pid=ConnPid,
         {ok, HostPort} ->
             {ok, HostPort, S};
         {error, Error} ->
-            ?LOG_WARNING("Master request for ~p to sentinel ~p:~p failed with ~p~n",
+            ?LOG_WARNING("Master request for ~p to sentinel ~p:~p failed with ~p",
                          [MasterGroup, H, P, Error]),
             eredis:stop(ConnPid),
             Errors = update_errors(Error, S#eredis_sentinel_state.errors),
