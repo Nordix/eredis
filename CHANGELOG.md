@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## v1.7.0
+
+July 2022.
+
+* Replaces `error_logger` with `logger`.
+
+* Turns repeated reconnection errors into log level `notice`.
+
+* Parser optimizations.
+
+* Enables performance tuning of the received packets handling.
+  The socket is set to `{active, N}` with N = 10 by default.
+  This is configurable by including `{active, N}` in the socket options or
+  in the TLS options when TLS is used.
+
+  Note that `{active, N}` with TLS requires OTP 21.3 or later.
+  When using OTP below 21.3 the option needs to be set to `{active, true}`.
+
 ## v1.6.0
 
 July 2022.
