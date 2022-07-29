@@ -305,7 +305,7 @@ start_link(Options::<a href="#type-options">options()</a>) -&gt; {ok, pid()} | {
 <dd>A 0-ary function that returns the password
   (the preferred way to provide password as it prevents the actual secret from
   appearing in logs and stacktraces), a string or iodata or the
-  atom <code>undefined</code> for no username; default <code>undefined</code>
+  atom <code>undefined</code> for no password; default <code>undefined</code>
 </dd>
 
 

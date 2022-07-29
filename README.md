@@ -204,7 +204,7 @@ response is returned, Eredis is not blocked.
 
 ## Reconnecting on Redis down / network failure / timeout / etc
 
-When Eredis for some reason looses the connection to Redis, Eredis
+When Eredis for some reason loses the connection to Redis, Eredis
 will keep trying to reconnect until a connection is successfully
 established, which includes the `AUTH` and `SELECT` calls. The sleep
 time between attempts to reconnect can be set in the
@@ -223,7 +223,7 @@ immediately with `{connection_error, Reason}`.
 
 Thanks to Dave Peticolas (jdavisp3), eredis supports
 pubsub. [`eredis_sub`](doc/eredis_sub.md) offers a separate client that will forward
-channel messages from Redis to an Erlang process in a "active-once"
+channel messages from Redis to an Erlang process in an "active-once"
 pattern similar to gen_tcp sockets. After every message received, the
 controlling process must acknowledge receipt using
 `eredis_sub:ack_message/1`.
@@ -335,7 +335,7 @@ data arrives on the socket.
 
 ## Tests and code checking
 
-EUnit tests currently requires a locally running instance of Redis.
+EUnit tests currently require a locally running instance of Redis.
 
 ```console
 rebar3 eunit
@@ -357,7 +357,7 @@ reference counted. This could be improved by replacing it with an
 iolist.
 
 When parsing bulk replies, the parser knows the size of the bulk. If the
-bulk is big and would come in many chunks, this could improved by
+bulk is big and would come in many chunks, this could be improved by
 having the client explicitly use `gen_tcp:recv/2` to fetch the entire
 bulk at once.
 

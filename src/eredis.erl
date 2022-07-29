@@ -55,7 +55,7 @@ start_link() ->
 %% <dt>`{password, Password}'</dt><dd>A 0-ary function that returns the password
 %% (the preferred way to provide password as it prevents the actual secret from
 %% appearing in logs and stacktraces), a string or iodata or the
-%% atom `undefined' for no username; default `undefined'</dd>
+%% atom `undefined' for no password; default `undefined'</dd>
 %% <dt>`{reconnect_sleep, ReconnectSleep}'</dt><dd>Integer of milliseconds to
 %% sleep between reconnect attempts; default: 100</dd>
 %% <dt>`{connect_timeout, Timeout}'</dt><dd>Timeout value in milliseconds to use
