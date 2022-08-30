@@ -150,7 +150,7 @@ stop(Client) ->
 q(Client, Command) ->
     call(Client, Command, ?TIMEOUT).
 
--spec q(Client::client(), Command::[any()], Timeout::integer()) ->
+-spec q(Client::client(), Command::[any()], Timeout::timeout()) ->
           {ok, return_value()} | {error, Reason::binary() | no_connection}.
 %% @doc Like q/2 with a custom timeout.
 q(Client, Command, Timeout) ->
@@ -167,7 +167,7 @@ q(Client, Command, Timeout) ->
 qp(Client, Pipeline) ->
     pipeline(Client, Pipeline, ?TIMEOUT).
 
--spec qp(Client::client(), Pipeline::pipeline(), Timeout::integer()) ->
+-spec qp(Client::client(), Pipeline::pipeline(), Timeout::timeout()) ->
           [{ok, return_value()} | {error, Reason::binary()}] |
           {error, no_connection}.
 %% @doc Like qp/2 with a custom timeout.
