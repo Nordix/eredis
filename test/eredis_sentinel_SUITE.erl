@@ -18,6 +18,7 @@
         , t_connection_failure_during_start_reconnect/1
         , t_reconnect_success_on_sentinel_process_exit/1
         , t_reconnect_success_on_sentinel_connection_break/1
+        , t_reconnect_success_on_sentinel_connection_break_mix_endpoints/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -134,6 +135,35 @@ t_reconnect_success_on_sentinel_connection_break(Config) when is_list(Config) ->
     ?assertEqual(1, length(LinkedPids2)),
     {ok, C1} = eredis:start_link(),
     eredis:q(C1, ["CLIENT", "KILL", "TYPE", "NORMAL"]),
+    timer:sleep(100),
+    {links, LinkedPids3} = process_info(whereis(mymaster), links),
+    ?assertMatch(2, length(LinkedPids3)),
+    ?assertMatch(ok, eredis:stop(C)),
+    IsDead = receive {'EXIT', _Pid, _Reason} -> died
+             after 400 -> still_alive end,
+    process_flag(trap_exit, false),
+    ?assertEqual(died, IsDead).
+
+t_reconnect_success_on_sentinel_connection_break_mix_endpoints(Config) when is_list(Config) ->
+    process_flag(trap_exit, true),
+    SentinelOpts = [{endpoints, ?WRONG_SENTINEL_ENDPOINTS ++ [{"127.0.0.1", ?SENTINEL_PORT}]}],
+    {ok, C} = eredis:start_link([{sentinel, SentinelOpts}]),
+    ?assertMatch({ok, [<<"master">> | _]}, eredis:q(C, ["ROLE"])),
+    timer:sleep(100),
+    {links, LinkedPids1} = process_info(whereis(mymaster), links),
+    ?assertMatch(2, length(LinkedPids1)),
+    {ok, SC} = eredis:start_link("127.0.0.1", ?SENTINEL_PORT),
+    eredis:q(SC, ["CLIENT", "KILL", "TYPE", "NORMAL"]),
+    timer:sleep(100),
+    {links, LinkedPids2} = process_info(whereis(mymaster), links),
+    ?assertEqual(1, length(LinkedPids2)),
+    erlang:exit(whereis(mymaster), abnormal),
+    timer:sleep(100),
+    ?assertMatch(undefined, whereis(mymaster)),
+    {ok, C1} = eredis:start_link(),
+    eredis:q(C1, ["CLIENT", "KILL", "TYPE", "NORMAL"]),
+    timer:sleep(100),
+    ?assertMatch({ok, [<<"master">> | _]}, eredis:q(C, ["ROLE"])),
     timer:sleep(100),
     {links, LinkedPids3} = process_info(whereis(mymaster), links),
     ?assertMatch(2, length(LinkedPids3)),

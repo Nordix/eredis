@@ -25,3 +25,5 @@ deps/
 mix.lock
 
 .idea/
+eredis.iml
+dump.rdb
