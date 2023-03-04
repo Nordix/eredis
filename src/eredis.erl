@@ -226,13 +226,21 @@ create_multibulk(Args) ->
 to_bulk(B) when is_binary(B) ->
     [<<$$>>, integer_to_list(iolist_size(B)), <<?NL>>, B, <<?NL>>].
 
-%% @doc: Convert given value to binary. Fallbacks to
-%% term_to_binary/1. For floats, throws {cannot_store_floats, Float}
-%% as we do not want floats to be stored in Redis. Your future self
-%% will thank you for this.
+%% @doc: Convert given value to binary. Fallbacks to term_to_binary/1.
 to_binary(X) when is_list(X)    -> list_to_binary(X);
 to_binary(X) when is_atom(X)    -> atom_to_binary(X, utf8);
 to_binary(X) when is_binary(X)  -> X;
 to_binary(X) when is_integer(X) -> integer_to_binary(X);
-to_binary(X) when is_float(X)   -> throw({cannot_store_floats, X});
+to_binary(X) when is_float(X)   -> encode_float(X);
 to_binary(X)                    -> term_to_binary(X).
+
+%% @doc: Convert a float to binary shortest representation.
+-ifdef(OTP_RELEASE).
+  -if(?OTP_RELEASE >= 25).
+    encode_float(X) -> float_to_binary(X, [short]).
+  -else.
+    encode_float(X) -> list_to_binary(io_lib_format:fwrite_g(X)).
+  -endif.
+-else.
+    encode_float(X) -> list_to_binary(io_lib_format:fwrite_g(X)).
+-endif.
