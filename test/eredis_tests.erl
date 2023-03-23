@@ -20,4 +20,4 @@ multibulk_test_() ->
                    list_to_binary(create_multibulk(['SET', foo, 3.141592653589793238462643383279]))),
      ?_assertEqual(<<"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$14\r\n1.801439851e16\r\n">>,
                    list_to_binary(create_multibulk(['SET', foo, 18014398510000000.0])))
-   ].
+    ].

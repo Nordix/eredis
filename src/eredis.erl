@@ -236,11 +236,11 @@ to_binary(X)                    -> term_to_binary(X).
 
 %% @doc: Convert a float to binary shortest representation.
 -ifdef(OTP_RELEASE).
-  -if(?OTP_RELEASE >= 25).
-    encode_float(X) -> float_to_binary(X, [short]).
-  -else.
-    encode_float(X) -> list_to_binary(io_lib_format:fwrite_g(X)).
-  -endif.
+-if(?OTP_RELEASE >= 25).
+encode_float(X) -> float_to_binary(X, [short]).
 -else.
-    encode_float(X) -> list_to_binary(io_lib_format:fwrite_g(X)).
+encode_float(X) -> list_to_binary(io_lib_format:fwrite_g(X)).
+-endif.
+-else.
+encode_float(X) -> list_to_binary(io_lib_format:fwrite_g(X)).
 -endif.
