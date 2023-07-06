@@ -22,7 +22,6 @@
 %% @private
 -module(eredis_parser).
 -include("eredis.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 -compile({inline, [binary_split_newline/1]}).
 
