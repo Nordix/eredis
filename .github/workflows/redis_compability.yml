@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Erlang/OTP
         run: |
-          DEB_NAME="esl-erlang_23.1-1~ubuntu~focal_amd64.deb"
+          DEB_NAME="esl-erlang_25.0.3-1~ubuntu~focal_amd64.deb"
           curl -f https://packages.erlang-solutions.com/erlang/debian/pool/$DEB_NAME -o $DEB_NAME
           sudo dpkg --install $DEB_NAME
 
