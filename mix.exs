@@ -32,7 +32,7 @@ defmodule Eredis.Mixfile do
     [
       # Use latest version of ex_doc to create correct tables
       # {:ex_doc, "~> 0.22", only: :dev, runtime: false}
-      {:ex_doc, git: "https://github.com/elixir-lang/ex_doc.git", tag: "master", only: :dev, runtime: false}
+      {:ex_doc, git: "https://github.com/elixir-lang/ex_doc.git", tag: "main", only: :dev, runtime: false}
     ]
   end
 
