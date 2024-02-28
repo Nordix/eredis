@@ -26,7 +26,7 @@ get_tcp_ports(Pid) ->
 
 %% Start a server port and run Fun when a client connect.
 -spec start_server(Fun :: fun((ClientSocket::inet:socket()) -> ok)) ->
-          {ok, inet:port_number()}.
+          {ok, pid(), inet:port_number()}.
 start_server(Fun) ->
     Pid = spawn_link(?MODULE, start_server, [self(), Fun]),
     Port = receive_from(Pid, 5000),
@@ -35,7 +35,8 @@ start_server(Fun) ->
 %% Stop server and close client socket as well if needed.
 -spec stop_server(Pid :: pid()) -> ok.
 stop_server(Pid) ->
-    Pid ! shutdown.
+    Pid ! shutdown,
+    ok.
 
 %% Wait for a client to connect to server
 -spec await_connect(Pid :: pid()) -> ok.
