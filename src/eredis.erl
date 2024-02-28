@@ -142,7 +142,7 @@ stop(Client) ->
     eredis_client:stop(Client).
 
 -spec q(Client::client(), Command::[any()]) ->
-          {ok, return_value()} | {error, Reason::binary() | no_connection}.
+          {ok, return_value()} | {error, Reason::any() | no_connection}.
 %% @doc: Executes the given command in the specified connection. The
 %% command must be a valid Redis command and may contain arbitrary
 %% data which will be converted to binaries. The returned values will
@@ -151,15 +151,14 @@ q(Client, Command) ->
     call(Client, Command, ?TIMEOUT).
 
 -spec q(Client::client(), Command::[any()], Timeout::timeout()) ->
-          {ok, return_value()} | {error, Reason::binary() | no_connection}.
+          {ok, return_value()} | {error, Reason::any() | no_connection}.
 %% @doc Like q/2 with a custom timeout.
 q(Client, Command, Timeout) ->
     call(Client, Command, Timeout).
 
 
 -spec qp(Client::client(), Pipeline::pipeline()) ->
-          [{ok, return_value()} | {error, Reason::binary()}] |
-          {error, no_connection}.
+          [{ok, return_value()} | {error, Reason::any() | no_connection}].
 %% @doc: Executes the given pipeline (list of commands) in the
 %% specified connection. The commands must be valid Redis commands and
 %% may contain arbitrary data which will be converted to binaries. The
@@ -168,8 +167,7 @@ qp(Client, Pipeline) ->
     pipeline(Client, Pipeline, ?TIMEOUT).
 
 -spec qp(Client::client(), Pipeline::pipeline(), Timeout::timeout()) ->
-          [{ok, return_value()} | {error, Reason::binary()}] |
-          {error, no_connection}.
+          [{ok, return_value()} | {error, Reason::any() | no_connection}].
 %% @doc Like qp/2 with a custom timeout.
 qp(Client, Pipeline, Timeout) ->
     pipeline(Client, Pipeline, Timeout).
