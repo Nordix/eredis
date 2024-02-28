@@ -156,11 +156,6 @@ bulk_nil_and_rest_test() ->
     B = <<"$-1\r\n$3\r\nfoo\r\n">>,
     ?assertEqual({ok, undefined, <<"$3\r\nfoo\r\n">>, init()}, parse(init(), B)).
 
-%% parse_bulk function tests
-parse_bulk_test() ->
-    B = <<"$3\r\nbar\r\n">>,
-    ?_assertEqual({ok, <<"bar">>, <<>>}, parse(init(), B)).
-
 parse_bulk_too_much_data_in_continuation_test() ->
     B1 = <<"$1\r\n">>,
     B2 = <<"1\r\n$1\r\n2\r\n$1\r\n3\r\n">>,
