@@ -159,7 +159,7 @@ t_connect_local(Module, Config) when is_list(Config) ->
 t_stop(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     C = c(),
-    ?assertMatch(ok, eredis:stop(C)),
+    ok = eredis:stop(C),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
     process_flag(trap_exit, false),
@@ -173,7 +173,7 @@ t_get_set(Config) when is_list(Config) ->
     ?assertEqual({ok, undefined}, eredis:q(C, ["GET", foo])),
     ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["SET", foo, bar])),
     ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_set_get_term(Config) when is_list(Config) ->
     C = c(),
@@ -181,7 +181,7 @@ t_set_get_term(Config) when is_list(Config) ->
 
     ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["SET", term, C])),
     ?assertEqual({ok, term_to_binary(C)}, eredis:q(C, ["GET", term])),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_delete(Config) when is_list(Config) ->
     C = c(),
@@ -190,7 +190,7 @@ t_delete(Config) when is_list(Config) ->
     ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["SET", foo, bar])),
     ?assertEqual({ok, <<"1">>}, eredis:q(C, ["DEL", foo])),
     ?assertEqual({ok, undefined}, eredis:q(C, ["GET", foo])),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_mset_mget(Config) when is_list(Config) ->
     C = c(),
@@ -204,7 +204,7 @@ t_mset_mget(Config) when is_list(Config) ->
     ?assertEqual({ok, <<"OK">>}, eredis:q(C, ["MSET" | lists:flatten(KeyValuePairs)])),
     ?assertEqual({ok, ExpectedResult}, eredis:q(C, ["MGET" | Keys])),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL" | Keys])),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_exec(Config) when is_list(Config) ->
     C = c(),
@@ -222,7 +222,7 @@ t_exec(Config) when is_list(Config) ->
     ?assertEqual({ok, ExpectedResult}, eredis:q(C, ["EXEC"])),
 
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", "k1", "k2"])),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_exec_nil(Config) when is_list(Config) ->
     C1 = c(),
@@ -234,8 +234,8 @@ t_exec_nil(Config) when is_list(Config) ->
     ?assertEqual({ok, <<"QUEUED">>}, eredis:q(C1, ["GET", "x"])),
     ?assertEqual({ok, undefined}, eredis:q(C1, ["EXEC"])),
     ?assertMatch({ok, _}, eredis:q(C1, ["DEL", "x"])),
-    ?assertMatch(ok, eredis:stop(C1)),
-    ?assertMatch(ok, eredis:stop(C2)).
+    ok = eredis:stop(C1),
+    ok = eredis:stop(C2).
 
 t_pipeline(Config) when is_list(Config) ->
     C = c(),
@@ -264,7 +264,7 @@ t_pipeline(Config) when is_list(Config) ->
                  eredis:qp(C, P3, 5000)),
 
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", a, b])),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_pipeline_mixed(Config) when is_list(Config) ->
     C = c(),
@@ -280,7 +280,7 @@ t_pipeline_mixed(Config) when is_list(Config) ->
           end),
     timer:sleep(10),
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", c, d])),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_q_noreply(Config) when is_list(Config) ->
     C = c(),
@@ -288,7 +288,7 @@ t_q_noreply(Config) when is_list(Config) ->
     ?assertEqual(ok, eredis:q_noreply(C, ["SET", foo, bar])),
     %% Even though q_noreply doesn't wait, it is sent before subsequent requests:
     ?assertEqual({ok, <<"bar">>}, eredis:q(C, ["GET", foo])),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_q_async(Config) when is_list(Config) ->
     C = c(),
@@ -304,7 +304,7 @@ t_q_async(Config) when is_list(Config) ->
             ?assertEqual(Msg2, {ok, <<"bar">>}),
             ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo]))
     end,
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_undefined_database(Config) when is_list(Config) ->
     t_undefined_database(eredis, Config).
@@ -411,13 +411,13 @@ t_unknown_client_call(Config) when is_list(Config) ->
     C = c(),
     Request = {test},
     ?assertEqual(unknown_request, gen_server:call(C, Request)),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_unknown_client_cast(Config) when is_list(Config) ->
     C = c(),
     Request = {test},
     ?assertEqual(ok, gen_server:cast(C, Request)),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_tcp_closed(Config) when is_list(Config) ->
     {ok, C} = eredis:start_link([{reconnect_sleep, 1000}]),
@@ -426,7 +426,7 @@ t_tcp_closed(Config) when is_list(Config) ->
     tcp_closed_rig(C),
     timer:sleep(100), % Instant reconnect. No sleep before the first attempt.
     ?assertMatch({ok, _}, eredis:q(C, ["DEL", foo], 500)),
-    ?assertMatch(ok, eredis:stop(C)).
+    ok = eredis:stop(C).
 
 t_connect_no_reconnect(Config) when is_list(Config) ->
     t_connect_no_reconnect(eredis, Config).

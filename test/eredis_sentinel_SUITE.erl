@@ -66,7 +66,7 @@ t_connect_with_explicit_options(Config) when is_list(Config) ->
 t_stop(Config) when is_list(Config) ->
     process_flag(trap_exit, true),
     C = c_sentinel(),
-    ?assertMatch(ok, eredis:stop(C)),
+    ok = eredis:stop(C),
     IsDead = receive {'EXIT', _, _} -> died
              after 1000 -> still_alive end,
     process_flag(trap_exit, false),
@@ -97,7 +97,7 @@ t_connection_failure_during_start_reconnect(Config) when is_list(Config) ->
     IsDead = receive {'EXIT', C, _} -> died
              after 400 -> still_alive end,
     ?assertEqual(still_alive, IsDead),
-    ?assertMatch(ok, eredis:stop(C)),
+    ok = eredis:stop(C),
     IsDead2 = receive {'EXIT', _Pid, _Reason} -> died
               after 1000 -> still_alive end,
     process_flag(trap_exit, false),
@@ -115,7 +115,7 @@ t_reconnect_success_on_sentinel_process_exit(Config) when is_list(Config) ->
     eredis:q(C1, ["CLIENT", "KILL", "TYPE", "NORMAL"]),
     timer:sleep(100),
     ?assert(is_process_alive(whereis(mymaster))),
-    ?assertMatch(ok, eredis:stop(C)),
+    ok = eredis:stop(C),
     IsDead = receive {'EXIT', _Pid, _Reason} -> died
              after 400 -> still_alive end,
     process_flag(trap_exit, false),
@@ -137,7 +137,7 @@ t_reconnect_success_on_sentinel_connection_break(Config) when is_list(Config) ->
     timer:sleep(100),
     {links, LinkedPids3} = process_info(whereis(mymaster), links),
     ?assertMatch(2, length(LinkedPids3)),
-    ?assertMatch(ok, eredis:stop(C)),
+    ok = eredis:stop(C),
     IsDead = receive {'EXIT', _Pid, _Reason} -> died
              after 400 -> still_alive end,
     process_flag(trap_exit, false),
@@ -159,7 +159,7 @@ connect_eredis_sentinel(Options) ->
     ?assertMatch({ok, _}, Res),
     {ok, C} = Res,
     ?assertMatch({ok, [<<"master">> | _]}, eredis:q(C, ["ROLE"])),
-    ?assertMatch(ok, eredis:stop(C)),
+    ok = eredis:stop(C),
     IsDead = receive {'EXIT', _Pid, _Reason} -> died
              after 400 -> still_alive end,
     process_flag(trap_exit, false),
