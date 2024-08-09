@@ -19,7 +19,7 @@
 -type options() :: [option()].
 -type server_args() :: options().               % for backwards compatibility
 
--type return_value() :: undefined | binary() | [binary() | nonempty_list() | undefined].
+-type return_value() :: undefined | binary() | [binary() | list() | undefined].
 
 -type pipeline() :: [iolist()].
 
