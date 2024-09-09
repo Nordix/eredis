@@ -113,10 +113,12 @@ handle_cast(_Request, State = #eredis_sentinel_state{}) ->
              {noreply, NewState :: #eredis_sentinel_state{}, timeout() | hibernate} |
              {stop, Reason :: term(), NewState :: #eredis_sentinel_state{}}).
 %% Current sentinel connection broken
+handle_info({'EXIT', _Pid, {connection_error, _}}, S) ->
+    {noreply, S};
 handle_info({'EXIT', Pid, _Reason}, #eredis_sentinel_state{conn_pid = Pid} = S) ->
     {noreply, S#eredis_sentinel_state{conn_pid = undefined}};
-
-handle_info({'EXIT', _Pid, _Reason}, S) ->
+handle_info({'EXIT', Pid, Reason}, S) ->
+    ?LOG_ERROR("eredis_sentinel: Exit from pid ~p with reason ~p and state ~p", [Pid, Reason, S]),
     {stop, normal, S};
 
 handle_info(_Info, State) ->
