@@ -7,13 +7,18 @@ on:
 
 jobs:
   fmt:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Prepare
         run: |
           sudo apt update
           sudo apt install emacs-nox
+      - name: Install Erlang/OTP and rebar3
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: '25.3.2.18'
+          rebar3-version: '3.24.0'
       - name: Run erlang-formatter
         run: |
           rebar3 fmt
@@ -28,52 +33,34 @@ jobs:
   ci:
     strategy:
       matrix:
-        include: # See https://www.erlang-solutions.com/downloads/
-          - otp-version: 25.0.3
-            platform: ubuntu-20.04
-            lsb_release: focal
-          - otp-version: 24.3.3
-            platform: ubuntu-20.04
-            lsb_release: focal
-          - otp-version: 23.3.4.5
-            platform: ubuntu-20.04
-            lsb_release: focal
-          - otp-version: 22.3.4.9
-            platform: ubuntu-20.04
-            lsb_release: focal
-          - otp-version: 21.3.8.17
-            platform: ubuntu-20.04
-            lsb_release: focal
-    runs-on: ${{ matrix.platform }}
+        include:
+          - otp-version: '25.3.2.18'
+            rebar3-version: '3.24.0'
+          - otp-version: '24.3.4.17'
+            rebar3-version: '3.17.0'
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Cache Hex packages
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ~/.cache/rebar3/hex/hexpm/packages
           key: ${{ runner.os }}-${{ matrix.otp-version }}-hex-${{ hashFiles('**/rebar.lock') }}
 
       - name: Cache Dialyzer PLTs
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ~/.cache/rebar3/rebar3_*_plt
           key: ${{ runner.os }}-${{ matrix.otp-version }}-dialyzer-${{ hashFiles('**/rebar.config') }}
           restore-keys: ${{ runner.os }}-${{ matrix.otp-version }}-dialyzer-
 
       - name: Install Erlang/OTP
-        run: |
-          DEB_NAME="esl-erlang_${{ matrix.otp-version }}-1~ubuntu~${{ matrix.lsb_release }}_amd64.deb"
-          curl -f https://packages.erlang-solutions.com/erlang/debian/pool/$DEB_NAME -o $DEB_NAME
-          sudo dpkg --install $DEB_NAME
-
-      - name: Install compatible rebar3 version
-        if: ${{ startsWith(matrix.otp-version, '20.') || startsWith(matrix.otp-version, '21.') || startsWith(matrix.otp-version, '22.') || startsWith(matrix.otp-version, '23.') || startsWith(matrix.otp-version, '24.')}}
-        run: |
-          git clone https://github.com/erlang/rebar3.git
-          cd rebar3 && git checkout 3.15.2 && ./bootstrap && ./rebar3 local install
-          echo "$HOME/.cache/rebar3/bin" >> $GITHUB_PATH
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp-version }}
+          rebar3-version: ${{ matrix.rebar3-version }}
 
       - name: Install elvis
         run: |
